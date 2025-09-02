@@ -1,0 +1,35 @@
+import random
+
+from owasp_dt import Client, AuthenticatedClient
+from owasp_dt.models import AnalysisRequest, Finding
+from tinystream import Stream
+
+from owasp_dt_azure_sync import dependency_track, azure, config
+from owasp_dt.api.analysis import update_analysis, retrieve_analysis
+
+
+def test_add_findings_comment(owasp_dt_client: AuthenticatedClient, findings: list[Finding]):
+    finding = findings[0]
+
+    test_comment = f"TestComment {random.randrange(0, 9999)}"
+    analysis_request = AnalysisRequest(project=finding.component.project, component=finding.component.uuid, vulnerability=finding.vulnerability.uuid, comment=test_comment)
+    resp = update_analysis.sync_detailed(client=owasp_dt_client, body=analysis_request)
+    assert resp.status_code == 200
+
+    resp = retrieve_analysis.sync_detailed(client=owasp_dt_client, project=finding.component.project, component=finding.component.uuid, vulnerability=finding.vulnerability.uuid)
+    assert resp.status_code == 200
+
+    analysis = resp.parsed
+    print(dependency_track.finding2str(finding))
+    assert Stream(analysis.analysis_comments).filter(lambda comment: test_comment in comment.comment).next().present
+
+
+def test_add_work_item(owasp_dt_client: AuthenticatedClient, findings: list[Finding]):
+    finding = findings[0]
+    test_url = f"http://test/item/{random.randrange(0, 9999)}"
+    analysis = dependency_track.create_azure_devops_work_item_analysis(finding, test_url)
+    dependency_track.add_analysis(owasp_dt_client, analysis)
+    analysis = dependency_track.get_analysis(owasp_dt_client, finding)
+    opt_url = dependency_track.read_azure_devops_work_item_url(analysis)
+    assert opt_url.present
+    assert opt_url.get() == test_url
