@@ -5,7 +5,7 @@ from owasp_dt.api.analysis import update_analysis, retrieve_analysis
 from owasp_dt.models import AnalysisRequest, Finding
 from tinystream import Stream
 
-from owasp_dt_sync import dependency_track
+from owasp_dt_sync import owasp_dt_helper
 
 
 def test_add_findings_comment(owasp_dt_client: AuthenticatedClient, findings: list[Finding]):
@@ -20,16 +20,16 @@ def test_add_findings_comment(owasp_dt_client: AuthenticatedClient, findings: li
     assert resp.status_code == 200
 
     analysis = resp.parsed
-    print(dependency_track.finding2str(finding))
+    print(owasp_dt_helper.finding2str(finding))
     assert Stream(analysis.analysis_comments).filter(lambda comment: test_comment in comment.comment).next().present
 
 
 def test_add_work_item_url(owasp_dt_client: AuthenticatedClient, findings: list[Finding]):
     finding = findings[0]
     test_url = f"http://test/item/{random.randrange(0, 9999)}"
-    analysis = dependency_track.create_azure_devops_work_item_analysis(finding, test_url)
-    dependency_track.add_analysis(owasp_dt_client, analysis)
-    analysis = dependency_track.get_analysis(owasp_dt_client, finding)
-    opt_url = dependency_track.read_azure_devops_work_item_url(analysis)
+    analysis = owasp_dt_helper.create_azure_devops_work_item_analysis(finding, test_url)
+    owasp_dt_helper.add_analysis(owasp_dt_client, analysis)
+    analysis = owasp_dt_helper.get_analysis(owasp_dt_client, finding)
+    opt_url = owasp_dt_helper.read_azure_devops_work_item_url(analysis)
     assert opt_url.present
     assert opt_url.get() == test_url

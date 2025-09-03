@@ -4,12 +4,12 @@ from azure.devops.released.work_item_tracking import WorkItemTrackingClient
 from owasp_dt import AuthenticatedClient
 from owasp_dt.models import Finding
 
-from owasp_dt_sync import dependency_track, azure, config
+from owasp_dt_sync import owasp_dt_helper, azure_helper, config
 
 
 @pytest.fixture
 def azure_connection() -> Connection:
-    return azure.create_connection_from_env()
+    return azure_helper.create_connection_from_env()
 
 @pytest.fixture
 def work_item_tracking_client(azure_connection: Connection) -> WorkItemTrackingClient:
@@ -25,8 +25,8 @@ def azure_work_item_type():
 
 @pytest.fixture
 def owasp_dt_client() -> AuthenticatedClient:
-    return dependency_track.create_client_from_env()
+    return owasp_dt_helper.create_client_from_env()
 
 @pytest.fixture
 def findings(owasp_dt_client: AuthenticatedClient) -> list[Finding]:
-    return dependency_track.load_and_filter_findings(owasp_dt_client)
+    return owasp_dt_helper.load_and_filter_findings(owasp_dt_client)

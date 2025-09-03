@@ -17,6 +17,9 @@ def handle_sync(args):
     if args.env:
         dotenv.load_dotenv(args.env)
 
+    if not config.apply_changes:
+        log.logger.info("Running in dry-run mode")
+
     azure_connection = azure_helper.create_connection_from_env()
     work_item_tracking_client = azure_connection.clients.get_work_item_tracking_client()
     azure_project = config.reqenv("AZURE_PROJECT")
@@ -29,7 +32,6 @@ def handle_sync(args):
     )
     for finding in findings:
         logger = log.get_logger(
-            dry_run=not config.apply_changes,
             project=f"{finding.component.project_name}:{finding.component.project_version}",
             component=f"{finding.component.name}:{finding.component.version}",
             vulnerability=finding.vulnerability.vuln_id,
@@ -71,16 +73,18 @@ def sync_finding(
     analysis = owasp_dt_helper.get_analysis(owasp_dt_client, finding)
     opt_url = owasp_dt_helper.read_azure_devops_work_item_url(analysis)
     if opt_url.absent:
-        logger.info("Create new WorkItem")
         if config.apply_changes:
             work_item: WorkItem = work_item_tracking_client.create_work_item(document=issue.create_work_item_document(), project=azure_project, type=azure_work_item_type)
             analysis = owasp_dt_helper.create_azure_devops_work_item_analysis(finding, work_item.url)
             owasp_dt_helper.add_analysis(owasp_dt_client, analysis)
         else:
             work_item = WorkItem()
+        logger = log.get_logger(logger, work_item=work_item.id)
+        logger.info(f"Created new WorkItem")
     else:
         work_item_id = azure_helper.read_work_item_id(opt_url.get())
         work_item: WorkItem = work_item_tracking_client.get_work_item(id=work_item_id, project=azure_project)
+        logger = log.get_logger(logger, work_item=work_item.id)
 
     work_item_wrapper = WorkItemWrapper(work_item)
 
@@ -118,7 +122,7 @@ def sync_items(
             work_item_wrapper,
             reference_date,
         )
-    else:
+    elif isinstance(newer, WorkItemWrapper):
         sync_work_item_to_finding(
             logger,
             work_item_tracking_client,
@@ -167,6 +171,8 @@ def sync_finding_to_work_item(
         logger.info(f"Update WorkItem")
         if config.apply_changes:
             work_item_tracking_client.update_work_item(id=work_item_wrapper.work_item.id, document=changes, project=azure_project)
+    else:
+        logger.info(f"No changes being made on the WorkItem")
 
 def map_work_item_to_analysis_request(work_item_wrapper: models.WorkItemWrapper, finding: Finding):
     work_item_state = work_item_wrapper.state

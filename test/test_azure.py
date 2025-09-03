@@ -4,7 +4,7 @@ from azure.devops.v7_1.work_item_tracking import WorkItemType, WorkItem
 from is_empty import empty
 from tinystream import Stream
 
-from owasp_dt_sync import azure, config
+from owasp_dt_sync import azure_helper, config
 
 
 def test_read_work_item_types(
@@ -23,19 +23,19 @@ def test_read_work_item_types(
 def test_mask_area_path():
     given_area_path = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH")
     assert "\\\\" not in given_area_path
-    area_path = azure.mask_area_path(given_area_path)
+    area_path = azure_helper.mask_area_path(given_area_path)
     assert "\\\\" in area_path
     print(area_path)
 
 def test_read_work_item_id():
-    assert azure.read_work_item_id("https://azure.devops.com/abce/_apis/wit/workItems/16142") == 16142
+    assert azure_helper.read_work_item_id("https://azure.devops.com/abce/_apis/wit/workItems/16142") == 16142
 
 def test_create_and_destroy_work_item(
         work_item_tracking_client: WorkItemTrackingClient,
         azure_project: str,
         azure_work_item_type: str
 ):
-    area_path = azure.mask_area_path(config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH"))
+    area_path = azure_helper.mask_area_path(config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH"))
     # https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/create?view=azure-devops-rest-7.1&tabs=HTTP
     document: list[JsonPatchOperation] = [
         JsonPatchOperation(op="add", path="/fields/System.Title", value="Test ticket"),
