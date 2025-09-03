@@ -1,15 +1,14 @@
+from datetime import datetime, timezone
 from typing import Iterable
 
-from azure.devops.v7_1.work_item_tracking import WorkItem
 from is_empty import not_empty
+from owasp_dt import Client, AuthenticatedClient
 from owasp_dt.api.analysis import update_analysis, retrieve_analysis
 from owasp_dt.api.finding import get_all_findings_1
-from owasp_dt import Client, AuthenticatedClient
 from owasp_dt.models import Finding, AnalysisRequest, Analysis, AnalysisComment
-from tinystream import Stream, Opt, EmptyOpt
-from datetime import datetime, timezone
-from owasp_dt_azure_sync import dependency_track, azure, config
+from tinystream import Stream, Opt
 
+from owasp_dt_azure_sync import config
 
 __AZURE_DEVOPS_WORK_ITEM_PREFIX="Azure DevOps work item: "
 

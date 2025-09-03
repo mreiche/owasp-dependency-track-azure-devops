@@ -1,11 +1,11 @@
 import random
 
-from owasp_dt import Client, AuthenticatedClient
+from owasp_dt import AuthenticatedClient
+from owasp_dt.api.analysis import update_analysis, retrieve_analysis
 from owasp_dt.models import AnalysisRequest, Finding
 from tinystream import Stream
 
-from owasp_dt_azure_sync import dependency_track, azure, config
-from owasp_dt.api.analysis import update_analysis, retrieve_analysis
+from owasp_dt_azure_sync import dependency_track
 
 
 def test_add_findings_comment(owasp_dt_client: AuthenticatedClient, findings: list[Finding]):

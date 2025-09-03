@@ -4,8 +4,7 @@ from owasp_dt import AuthenticatedClient
 from owasp_dt.models import Finding
 
 from owasp_dt_azure_sync import dependency_track, azure, config, models, sync
-from owasp_dt.api.analysis import update_analysis, retrieve_analysis
-from datetime import datetime, timezone
+
 
 def test_render_work_item(
         owasp_dt_client: AuthenticatedClient,

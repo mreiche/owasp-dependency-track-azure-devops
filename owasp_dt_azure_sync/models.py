@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -6,7 +5,8 @@ from azure.devops.v7_0.core import JsonPatchOperation
 from azure.devops.v7_1.work import WorkItem
 from owasp_dt.models import Finding
 
-from owasp_dt_azure_sync import dependency_track, azure, config, jinja
+from owasp_dt_azure_sync import azure, config, jinja
+
 
 @dataclass
 class IssueData:

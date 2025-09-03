@@ -1,11 +1,12 @@
+from datetime import datetime
+
 from azure.devops.released.work_item_tracking import WorkItemTrackingClient
 from azure.devops.v7_0.work import WorkItem
-from azure.devops.v7_1.core import JsonPatchOperation
 from owasp_dt import AuthenticatedClient
 from owasp_dt.api.analysis import update_analysis
-from owasp_dt.models import Finding, Analysis, AnalysisComment, AnalysisRequest, AnalysisRequestAnalysisState
-from datetime import datetime
-from owasp_dt_azure_sync import dependency_track, azure, config, models
+from owasp_dt.models import Finding, Analysis, AnalysisRequest, AnalysisRequestAnalysisState
+
+from owasp_dt_azure_sync import dependency_track, azure, models
 from owasp_dt_azure_sync.models import WorkItemState, WorkItemWrapper
 
 
