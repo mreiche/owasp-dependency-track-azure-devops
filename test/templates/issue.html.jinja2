@@ -1,0 +1,15 @@
+<h1>Automated findings report</h1>
+<ul>
+    {% for finding in issue.data.findings %}
+        <li>Project name/version: <a href="{{ env('OWASP_DTRACK_URL') }}/projects/{{ finding.component.project }}/findings">{{ finding.component.project_name }}/{{ finding.component.project_version }}</a></li>
+        <ul>
+            <li>Component name/version/latest: {{ finding.component.name }}/{{ finding.component.version }}/{{ finding.component.latest_version }}</li>
+            <li>Vulnerability: {{ finding.vulnerability.vuln_id }}</li>
+                <ul>
+                    <li>Description: {{ finding.vulnerability.description }}</li>
+                    <li>Severity: {{ finding.vulnerability.severity }}</li>
+                    <li>CVSS: {{ finding.vulnerability.cvss_v3_base_score }}</li>
+                </ul>
+        </ul>
+    {% endfor %}
+</ul>

@@ -1,19 +1,22 @@
+from typing import Iterable
+
 from azure.devops.v7_1.work_item_tracking import WorkItem
 from is_empty import not_empty
 from owasp_dt.api.analysis import update_analysis, retrieve_analysis
 from owasp_dt.api.finding import get_all_findings_1
 from owasp_dt import Client, AuthenticatedClient
 from owasp_dt.models import Finding, AnalysisRequest, Analysis, AnalysisComment
-from tinystream import Stream, Opt
-
+from tinystream import Stream, Opt, EmptyOpt
+from datetime import datetime, timezone
 from owasp_dt_azure_sync import dependency_track, azure, config
 
 
 __AZURE_DEVOPS_WORK_ITEM_PREFIX="Azure DevOps work item: "
 
 def create_client_from_env() -> AuthenticatedClient:
+    base_url = config.reqenv("OWASP_DTRACK_URL")
     client = Client(
-        base_url=config.reqenv("OWASP_DTRACK_URL"),
+        base_url=f"{base_url}/api",
         headers={
             "X-Api-Key": config.reqenv("OWASP_DTRACK_API_KEY")
         },
@@ -74,15 +77,33 @@ def add_analysis(client: AuthenticatedClient, analysis_request: AnalysisRequest)
     assert resp.status_code == 200
 
 def find_comment_prefix(analysis: Analysis, prefix: str):
-    def _find_comment(comment: AnalysisComment):
+    def _find(comment: AnalysisComment):
         return comment.comment.startswith(prefix)
 
-    return Stream(analysis.analysis_comments).find(_find_comment)
+    return read_comments(analysis).find(_find)
+
+def read_comments(analysis: Analysis) -> Stream[AnalysisComment]:
+    def _sort_oldest_first(a: AnalysisComment, b: AnalysisComment):
+        return a.timestamp - b.timestamp
+
+    return (
+        Opt(analysis.analysis_comments)
+        .filter_type(Iterable)
+        .stream()
+        .sort(_sort_oldest_first)
+    )
 
 # def strip_prefix(opt_comment: Opt[AnalysisComment], prefix: str):
 #     return comment.comment.replace(prefix, "")
 
-def get_analysis(client: AuthenticatedClient, finding: Finding):
+def get_analysis(client: AuthenticatedClient, finding: Finding) -> Analysis:
     resp = retrieve_analysis.sync_detailed(client=client, project=finding.component.project, component=finding.component.uuid, vulnerability=finding.vulnerability.uuid)
-    assert resp.status_code == 200
-    return resp.parsed
+    if resp.status_code == 404:
+        return Analysis()
+    else:
+        assert resp.status_code == 200
+        return resp.parsed
+
+
+def create_date_from_comment(comment: AnalysisComment):
+    return datetime.fromtimestamp(comment.timestamp/1000, timezone.utc)

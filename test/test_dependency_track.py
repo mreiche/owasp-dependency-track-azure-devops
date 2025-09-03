@@ -24,7 +24,7 @@ def test_add_findings_comment(owasp_dt_client: AuthenticatedClient, findings: li
     assert Stream(analysis.analysis_comments).filter(lambda comment: test_comment in comment.comment).next().present
 
 
-def test_add_work_item(owasp_dt_client: AuthenticatedClient, findings: list[Finding]):
+def test_add_work_item_url(owasp_dt_client: AuthenticatedClient, findings: list[Finding]):
     finding = findings[0]
     test_url = f"http://test/item/{random.randrange(0, 9999)}"
     analysis = dependency_track.create_azure_devops_work_item_analysis(finding, test_url)
