@@ -1,11 +1,13 @@
+import re
+
 from azure.devops.connection import Connection
 from is_empty import empty
 from msrest.authentication import BasicAuthentication
-from owasp_dt.models import Finding
 from owasp_dt import Client
+from owasp_dt.models import Finding
+
 from owasp_dt_azure_sync import config
-from owasp_dt.api.analysis import retrieve_analysis
-import re
+
 
 def create_connection_from_env() -> Connection:
     credentials = BasicAuthentication('', config.reqenv("AZURE_API_KEY"))
