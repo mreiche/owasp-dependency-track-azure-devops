@@ -6,7 +6,7 @@ from msrest.authentication import BasicAuthentication
 from owasp_dt import Client
 from owasp_dt.models import Finding
 
-from owasp_dt_azure_sync import config
+from owasp_dt_sync import config
 
 
 def create_connection_from_env() -> Connection:

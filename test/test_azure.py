@@ -4,7 +4,7 @@ from azure.devops.v7_1.work_item_tracking import WorkItemType, WorkItem
 from is_empty import empty
 from tinystream import Stream
 
-from owasp_dt_azure_sync import azure, config
+from owasp_dt_sync import azure, config
 
 
 def test_read_work_item_types(

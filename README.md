@@ -1,4 +1,4 @@
-# OWASP Dependency Track / Azure Devops
+# OWASP Dependency Track / Azure DevOps Sync
 
 Synchronizes OWASP Dependency Track Issues with Azure Devops WorkItems.
 
@@ -14,4 +14,5 @@ OWASP_DTRACK_URL="http://localhost:8081"            # Base-URL to OWASP Dependen
 OWASP_DTRACK_VERIFY_SSL="False"                     # Do not verify SSL
 OWASP_DTRACK_API_KEY=""                             # Your OWASP Dependency Track API Key
 HTTPS_PROXY=""                                      # URL for HTTP(S) proxy
+LOG_LEVEL="info"                                    # Logging verbosity
 ```

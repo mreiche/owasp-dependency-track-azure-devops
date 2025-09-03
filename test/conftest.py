@@ -4,7 +4,7 @@ from azure.devops.released.work_item_tracking import WorkItemTrackingClient
 from owasp_dt import AuthenticatedClient
 from owasp_dt.models import Finding
 
-from owasp_dt_azure_sync import dependency_track, azure, config
+from owasp_dt_sync import dependency_track, azure, config
 
 
 @pytest.fixture

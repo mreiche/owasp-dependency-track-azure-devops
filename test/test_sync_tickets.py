@@ -3,7 +3,7 @@ from azure.devops.v7_1.work_item_tracking import WorkItem
 from owasp_dt import AuthenticatedClient
 from owasp_dt.models import Finding
 
-from owasp_dt_azure_sync import dependency_track, azure, config, models, sync
+from owasp_dt_sync import dependency_track, azure, config, models, sync
 
 
 def test_render_work_item(

@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Callable
 
 from azure.devops.v7_0.core import JsonPatchOperation
 from azure.devops.v7_1.work import WorkItem
 from owasp_dt.models import Finding
+from tinystream import Opt
 
-from owasp_dt_azure_sync import azure, config, jinja
-
+from owasp_dt_sync import azure_helper, config, jinja
+from datetime import datetime, timezone
 
 @dataclass
 class IssueData:
@@ -20,7 +22,7 @@ class Issue:
             data: IssueData = None,
     ):
         self.__title = title
-        self.__area_path = azure.mask_area_path(area_path)
+        self.__area_path = azure_helper.mask_area_path(area_path)
         self.__data = data
 
     def render_description(self):
@@ -55,6 +57,7 @@ class WorkItemField(StrEnum):
     DESCRIPTION="System.Description"
     AREA="System.AreaPath"
     STATE="System.State"
+    CHANGED_DATE="System.ChangedDate"
 
     @property
     def field_path(self):
@@ -65,16 +68,24 @@ class WorkItemWrapper:
         self.__work_item = work_item
         self.__changes: list[JsonPatchOperation] = []
 
-    def __get_field_value(self, field: WorkItemField):
-        return self.__work_item.fields[field.value]
+    def __opt_field_value(self, field: WorkItemField) -> Opt:
+        return Opt(self.__work_item).map_keys("fields", field.value)
 
     @property
     def work_item(self):
         return self.__work_item
 
     @property
-    def state(self):
-        return WorkItemState(self.__get_field_value(WorkItemField.STATE))
+    def state(self) -> WorkItemState:
+        return self.__opt_field_value(WorkItemField.STATE).if_absent(lambda: WorkItemState.NEW.value).map(WorkItemState).get()
+
+    @property
+    def changed_date(self) -> datetime:
+        field_value = self.__opt_field_value(WorkItemField.CHANGED_DATE)
+        if field_value.present:
+            return field_value.map(datetime.fromisoformat).get()
+        else:
+            return datetime.fromtimestamp(0, tz=timezone.utc)
 
     @state.setter
     def state(self, value: WorkItemState):

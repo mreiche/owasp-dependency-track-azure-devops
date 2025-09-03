@@ -8,7 +8,7 @@ from owasp_dt.api.finding import get_all_findings_1
 from owasp_dt.models import Finding, AnalysisRequest, Analysis, AnalysisComment
 from tinystream import Stream, Opt
 
-from owasp_dt_azure_sync import config
+from owasp_dt_sync import config
 
 __AZURE_DEVOPS_WORK_ITEM_PREFIX="Azure DevOps work item: "
 
@@ -39,8 +39,8 @@ def load_and_filter_findings(
         client=client,
         show_inactive=False,
         show_suppressed=False,
-        cvssv_2_from=str(cvss2_min_score) if cvss2_min_score > 0 else None,
-        cvssv_3_from=str(cvss3_min_score) if cvss3_min_score > 0 else None,
+        cvssv_2_from=Opt(cvss2_min_score).filter(not_empty).filter(lambda v: v > 0).get(None),
+        cvssv_3_from=Opt(cvss3_min_score).filter(not_empty).filter(lambda v: v > 0).get(None),
     )
     assert resp.status_code == 200
     return resp.parsed
