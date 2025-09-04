@@ -2,8 +2,6 @@ import os
 from typing import Callable
 type Mapper = Callable[[str], any]
 
-apply_changes: bool = False
-
 def reqenv(key: str, mapper: Mapper = None):
     def raise_error():
         raise Exception(f"Environment variable {key} not defined or empty")

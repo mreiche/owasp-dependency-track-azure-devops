@@ -2,27 +2,23 @@ import importlib.util
 from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
+from typing import Callable
 
 from azure.devops.v7_0.core import JsonPatchOperation
 from azure.devops.v7_1.work import WorkItem
 from owasp_dt.models import Finding
 from tinystream import Opt
 
-from owasp_dt_sync import config, jinja
+from owasp_dt_sync import config, jinja, log
 
-
-def load_wrapper_module(mapper_path: Path, modulname="extern"):
-    spec = importlib.util.spec_from_file_location(modulname, mapper_path)
-    modul = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(modul)
-    assert callable(getattr(modul, "transform", None)), f"Mapper function {mapper_path}.transform is not callable"
-    return modul
+from dataclasses import dataclass
 
 def create_new_work_item_wrapper(findings: list[Finding] = None):
+    from owasp_dt_sync import globals
     work_item_wrapper = WorkItemWrapper(WorkItem(), findings)
     work_item_wrapper.title = "New Finding"
     work_item_wrapper.area = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH", "")
-    transform_work_item_wrapper(work_item_wrapper)
+    globals.custom_mapper.update_work_item_wrapper(work_item_wrapper)
     return work_item_wrapper
 
 class WorkItemState(StrEnum):
@@ -79,8 +75,12 @@ class WorkItemWrapper:
         self.__set_field_value(WorkItemField.TITLE, value)
 
     @property
-    def state(self) -> WorkItemState:
+    def work_item_state(self) -> WorkItemState:
         return self.__opt_field_value(WorkItemField.STATE).if_absent(lambda: WorkItemState.NEW.value).map(WorkItemState).get()
+
+    @property
+    def state(self) -> str:
+        return self.__opt_field_value(WorkItemField.STATE).get("")
 
     @state.setter
     def state(self, value: WorkItemState|str):
@@ -122,5 +122,23 @@ class WorkItemWrapper:
     def render_description(self):
         self.description = jinja.get_template().render(work_item_wrapper=self)
 
-def transform_work_item_wrapper(work_item_wrapper: WorkItemWrapper):
-    pass
+@dataclass
+class MapperModule:
+    process_finding: Callable[[Finding], bool]
+    update_work_item_wrapper: Callable[[WorkItemWrapper], None]
+    method_names = ["process_finding", "update_work_item_wrapper"]
+
+def load_custom_mapper_module(mapper_path: Path) -> MapperModule:
+    spec = importlib.util.spec_from_file_location(str(mapper_path), mapper_path)
+    modul = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modul)
+    for method in MapperModule.method_names:
+        assert callable(getattr(modul, method, None)), f"Mapper function '{modul.__name__}.{method}' is not callable"
+
+    log.logger.info(f"Using custom mapper: '{mapper_path}'")
+    return modul
+
+null_mapper = MapperModule(
+    process_finding=lambda x: True,
+    update_work_item_wrapper=lambda x: None
+)

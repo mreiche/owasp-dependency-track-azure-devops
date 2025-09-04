@@ -1,14 +1,5 @@
-from dataclasses import dataclass
+def process_finding(finding):
+    return finding.component.name == "urllib3" and finding.component.version == "2.4.0"
 
-
-@dataclass
-class WorkItemWrapper:
-    state: str
-    area: str
-
-
-def filter_findings():
-    pass
-
-def transform_work_item_wrapper(work_item_wrapper: WorkItemWrapper):
+def update_work_item_wrapper(work_item_wrapper):
     pass

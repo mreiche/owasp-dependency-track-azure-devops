@@ -1,15 +1,12 @@
-import json
 import re
 
 from azure.devops.connection import Connection
+from azure.devops.released.work_item_tracking import WorkItemTrackingClient, WorkItemType, JsonPatchOperation
 from is_empty import empty
 from msrest.authentication import BasicAuthentication
-from owasp_dt import Client
-from owasp_dt.models import Finding
-from azure.devops.released.work_item_tracking import WorkItemTrackingClient, WorkItem, WorkItemType, JsonPatchOperation
 from tinystream import Stream
 
-from owasp_dt_sync import config, models
+from owasp_dt_sync import config
 
 
 def create_connection_from_env() -> Connection:
