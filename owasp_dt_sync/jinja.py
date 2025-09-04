@@ -3,7 +3,7 @@ from pathlib import Path
 
 import jinja2
 
-from owasp_dt_azure_sync import config
+from owasp_dt_sync import config
 
 __template_file = Path(config.getenv("TEMPLATE", "templates/issue.html.jinja2"))
 __template_env: jinja2.Environment = None

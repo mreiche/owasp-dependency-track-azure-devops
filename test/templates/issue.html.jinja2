@@ -1,6 +1,6 @@
 <h1>Automated findings report</h1>
 <ul>
-    {% for finding in issue.data.findings %}
+    {% for finding in work_item_wrapper.findings %}
         <li>Project name/version: <a href="{{ env('OWASP_DTRACK_URL') }}/projects/{{ finding.component.project }}/findings">{{ finding.component.project_name }}/{{ finding.component.project_version }}</a></li>
         <ul>
             <li>Component name/version/latest: {{ finding.component.name }}/{{ finding.component.version }}/{{ finding.component.latest_version }}</li>

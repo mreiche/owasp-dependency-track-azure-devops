@@ -8,7 +8,7 @@ from owasp_dt.api.finding import get_all_findings_1
 from owasp_dt.models import Finding, AnalysisRequest, Analysis, AnalysisComment
 from tinystream import Stream, Opt
 
-from owasp_dt_azure_sync import config
+from owasp_dt_sync import config
 
 __AZURE_DEVOPS_WORK_ITEM_PREFIX="Azure DevOps work item: "
 
@@ -28,7 +28,12 @@ def create_client_from_env() -> AuthenticatedClient:
     )
     return client
 
-# PUT http://localhost:8081/api/v1/analysis (comment)
+def pretty_analysis_request(analysis_request: AnalysisRequest):
+    req_dict = analysis_request.to_dict()
+    del req_dict["component"]
+    del req_dict["vulnerability"]
+    del req_dict["project"]
+    return req_dict
 
 def load_and_filter_findings(
         client: AuthenticatedClient,
@@ -39,8 +44,8 @@ def load_and_filter_findings(
         client=client,
         show_inactive=False,
         show_suppressed=False,
-        cvssv_2_from=str(cvss2_min_score) if cvss2_min_score > 0 else None,
-        cvssv_3_from=str(cvss3_min_score) if cvss3_min_score > 0 else None,
+        cvssv_2_from=Opt(cvss2_min_score).filter(not_empty).filter(lambda v: v > 0).get(None),
+        cvssv_3_from=Opt(cvss3_min_score).filter(not_empty).filter(lambda v: v > 0).get(None),
     )
     assert resp.status_code == 200
     return resp.parsed
@@ -91,9 +96,6 @@ def read_comments(analysis: Analysis) -> Stream[AnalysisComment]:
         .stream()
         .sort(_sort_oldest_first)
     )
-
-# def strip_prefix(opt_comment: Opt[AnalysisComment], prefix: str):
-#     return comment.comment.replace(prefix, "")
 
 def get_analysis(client: AuthenticatedClient, finding: Finding) -> Analysis:
     resp = retrieve_analysis.sync_detailed(client=client, project=finding.component.project, component=finding.component.uuid, vulnerability=finding.vulnerability.uuid)
