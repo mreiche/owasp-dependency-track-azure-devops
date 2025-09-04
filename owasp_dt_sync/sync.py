@@ -31,7 +31,7 @@ def handle_sync(args):
     )
     for finding in findings:
         logger = log.get_logger(
-            project=f"{finding.component.project_name}:{finding.component.project_version}",
+            project=f"{finding.component.project_name}:{finding.component.project_version if isinstance(finding.component.project_version, str) else None}",
             component=f"{finding.component.name}:{finding.component.version}",
             vulnerability=finding.vulnerability.vuln_id,
         )
@@ -82,6 +82,7 @@ def sync_finding(
             logger.info(f"Created new WorkItem type '{work_item_wrapper.work_item_type}'")
         else:
             logger.info(f"Would create WorkItem type '{work_item_wrapper.work_item_type}': {azure_helper.pretty_changes(changes)}")
+            logger = log.get_logger(logger, work_item=None)
             work_item_wrapper.update_work_item(WorkItem())
     else:
         work_item_id = azure_helper.read_work_item_id(opt_url.get())
@@ -149,7 +150,7 @@ def sync_work_item_to_finding(
         resp = update_analysis.sync_detailed(client=owasp_dt_client, body=analysis_request)
         assert resp.status_code == 200
     else:
-        logger.info(f"Would update Analysis: {analysis_request}")
+        logger.info(f"Would update Analysis: {owasp_dt_helper.pretty_analysis_request(analysis_request)}")
 
 def sync_finding_to_work_item(
     logger: log.Logger,
@@ -170,8 +171,6 @@ def sync_finding_to_work_item(
             work_item_tracking_client.update_work_item(id=work_item_wrapper.work_item.id, document=changes, project=azure_project)
         else:
             logger.info(f"Would update WorkItem with the changes: {azure_helper.pretty_changes(changes)}")
-    else:
-        logger.info(f"No changes being made on the WorkItem")
 
 def map_work_item_to_analysis_request(work_item_wrapper: models.WorkItemWrapper, finding: Finding):
     work_item_state = work_item_wrapper.state

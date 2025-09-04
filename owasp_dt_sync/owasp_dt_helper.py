@@ -28,7 +28,12 @@ def create_client_from_env() -> AuthenticatedClient:
     )
     return client
 
-# PUT http://localhost:8081/api/v1/analysis (comment)
+def pretty_analysis_request(analysis_request: AnalysisRequest):
+    req_dict = analysis_request.to_dict()
+    del req_dict["component"]
+    del req_dict["vulnerability"]
+    del req_dict["project"]
+    return req_dict
 
 def load_and_filter_findings(
         client: AuthenticatedClient,
@@ -91,9 +96,6 @@ def read_comments(analysis: Analysis) -> Stream[AnalysisComment]:
         .stream()
         .sort(_sort_oldest_first)
     )
-
-# def strip_prefix(opt_comment: Opt[AnalysisComment], prefix: str):
-#     return comment.comment.replace(prefix, "")
 
 def get_analysis(client: AuthenticatedClient, finding: Finding) -> Analysis:
     resp = retrieve_analysis.sync_detailed(client=client, project=finding.component.project, component=finding.component.uuid, vulnerability=finding.vulnerability.uuid)
