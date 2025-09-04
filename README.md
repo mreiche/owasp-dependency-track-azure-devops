@@ -28,6 +28,7 @@ OWASP_DTRACK_VERIFY_SSL="False"                     # Do not verify SSL
 OWASP_DTRACK_API_KEY=""                             # Your OWASP Dependency Track API Key
 HTTPS_PROXY=""                                      # URL for HTTP(S) proxy (optional)
 LOG_LEVEL="info"                                    # Logging verbosity (optional)
+HTTPX_LOG_LEVEL="warning"                           # Log level of the httpx framework
 ```
 
 ## Templating
@@ -41,15 +42,25 @@ owasp_dt_sync --template path/to/your/template.jinja2
 ## Custom filtering and mapping
 
 You can filter findings and apply changes on the work items using custom mappers:
+
 ```python
 def process_finding(finding):
-    return True
+    return finding.component.project_name == "My_Project"
 
-def update_work_item_wrapper(work_item_wrapper):
+def new_work_item(work_item_wrapper):
     work_item_wrapper.title = "New Finding"
-    if work_item_wrapper.findings[0].component.project_name == "Other project":
+
+    if work_item_wrapper.finding.component.project_name == "Other project":
         work_item_wrapper.area = "Path\\To\\My\\Custom\\Area"
-    pass
+        
+
+def map_analysis_to_work_item(analysis_wrapper, work_item_wrapper):
+    # Call this method if you want to re-render the ticket description
+    work_item_wrapper.render_description()
+
+# Remove mappers you dont need
+# def map_work_item_to_analysis(work_item_wrapper, analysis_wrapper):
+#     pass
 ```
 and pass this mapper using:
 ```shell

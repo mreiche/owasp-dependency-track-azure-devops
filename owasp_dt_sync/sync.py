@@ -6,7 +6,7 @@ from azure.devops.released.work_item_tracking import WorkItemTrackingClient, Wor
 from is_empty import empty
 from owasp_dt import AuthenticatedClient
 from owasp_dt.api.analysis import update_analysis
-from owasp_dt.models import Finding, Analysis, AnalysisRequest, AnalysisRequestAnalysisState
+from owasp_dt.models import Finding, Analysis
 from tinystream import Stream
 
 from owasp_dt_sync import owasp_dt_helper, azure_helper, models, config, log, globals
@@ -27,18 +27,20 @@ def handle_sync(args):
         assert dotenv.load_dotenv(args.env), f"Unable to load env file: '{args.env}'"
 
     if args.mapper:
-        globals.custom_mapper = models.load_custom_mapper_module(args.mapper)
+        models.load_custom_mapper_module(args.mapper)
 
     azure_connection = azure_helper.create_connection_from_env()
     work_item_tracking_client = azure_connection.clients.get_work_item_tracking_client()
     azure_project = config.reqenv("AZURE_PROJECT")
     owasp_dt_client = owasp_dt_helper.create_client_from_env()
     findings = owasp_dt_helper.load_and_filter_findings(
-        owasp_dt_client,
+        client=owasp_dt_client,
         cvss2_min_score=args.cvss_min_score,
         cvss3_min_score=args.cvss_min_score,
+        load_suppressed=args.load_suppressed,
+        load_inactive=args.load_inactive,
     )
-    for finding in Stream(findings).filter(globals.custom_mapper.process_finding):
+    for finding in Stream(findings).filter(globals.mapper.process_finding):
         logger = log.get_logger(
             project=f"{finding.component.project_name}:{finding.component.project_version if isinstance(finding.component.project_version, str) else None}",
             component=f"{finding.component.name}:{finding.component.version}",
@@ -82,7 +84,7 @@ def sync_finding(
         work_item_wrapper = create_new_work_item_wrapper(
             work_item_tracking_client=work_item_tracking_client,
             azure_project=azure_project,
-            findings=[finding]
+            finding=finding,
         )
 
         if globals.apply_changes:
@@ -100,7 +102,7 @@ def sync_finding(
             work_item_wrapper.update_work_item(WorkItem())
     else:
         work_item_id = azure_helper.read_work_item_id(opt_url.get())
-        work_item_wrapper = models.WorkItemWrapper(WorkItem(id=work_item_id), [finding])
+        work_item_wrapper = models.WorkItemWrapper(WorkItem(id=work_item_id), finding)
 
         try:
             work_item: WorkItem = work_item_tracking_client.get_work_item(id=work_item_id, project=azure_project)
@@ -112,7 +114,7 @@ def sync_finding(
                 work_item_wrapper = create_new_work_item_wrapper(
                     work_item_tracking_client=work_item_tracking_client,
                     azure_project=azure_project,
-                    findings=[finding]
+                    finding=finding,
                 )
                 work_item_logger, analysis = create_work_item(
                     logger=finding_logger,
@@ -129,19 +131,18 @@ def sync_finding(
         work_item_tracking_client=work_item_tracking_client,
         azure_project=azure_project,
         work_item_wrapper=work_item_wrapper,
-        finding=finding,
         analysis=analysis
     )
 
 def create_new_work_item_wrapper(
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    findings: list[Finding] = None
+    finding: Finding = None
 ):
-    work_item_wrapper = WorkItemWrapper(WorkItem(), findings)
+    work_item_wrapper = WorkItemWrapper(WorkItem(), finding)
     work_item_wrapper.title = "New Finding"
     work_item_wrapper.area = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH", "")
-    globals.custom_mapper.update_work_item_wrapper(work_item_wrapper)
+    globals.mapper.new_work_item(work_item_wrapper)
     work_item_wrapper.render_description()
 
     if empty(work_item_wrapper.work_item_type):
@@ -175,64 +176,61 @@ def sync_items(
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
     work_item_wrapper: WorkItemWrapper,
-    finding: Finding,
     analysis: Analysis,
 ):
     newer, reference_date = find_newer(work_item_wrapper, analysis)
+    analysis_wrapper = models.AnalysisWrapper(analysis, work_item_wrapper.finding)
     if isinstance(newer, Analysis):
-        sync_finding_to_work_item(
+        sync_analysis_to_work_item(
             logger=logger,
             owasp_dt_client=owasp_dt_client,
-            finding=finding,
-            analysis=analysis,
+            analysis_wrapper=analysis_wrapper,
             work_item_tracking_client=work_item_tracking_client,
             azure_project=azure_project,
             work_item_wrapper=work_item_wrapper,
             reference_date=reference_date,
         )
     elif isinstance(newer, WorkItemWrapper):
-        sync_work_item_to_finding(
+        sync_work_item_to_analysis(
             logger=logger,
             work_item_tracking_client=work_item_tracking_client,
             azure_project=azure_project,
             work_item_wrapper=work_item_wrapper,
             owasp_dt_client=owasp_dt_client,
-            finding=finding,
-            analysis=analysis,
+            analysis_wrapper=analysis_wrapper,
             reference_date=reference_date,
         )
 
 
-def sync_work_item_to_finding(
+def sync_work_item_to_analysis(
     logger: log.Logger,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
     work_item_wrapper: WorkItemWrapper,
     owasp_dt_client: AuthenticatedClient,
-    finding: Finding,
-    analysis: Analysis,
+    analysis_wrapper: models.AnalysisWrapper,
     reference_date: datetime,
 ):
-    analysis_request = map_work_item_to_analysis_request(work_item_wrapper, finding)
+    globals.mapper.map_work_item_to_analysis(work_item_wrapper, analysis_wrapper)
+
     if globals.apply_changes:
-        logger.info(f"Update Analysis")
-        resp = update_analysis.sync_detailed(client=owasp_dt_client, body=analysis_request)
+        logger.info(f"Update Analysis: {owasp_dt_helper.pretty_analysis_request(analysis_wrapper.request)}")
+        resp = update_analysis.sync_detailed(client=owasp_dt_client, body=analysis_wrapper.request)
         assert resp.status_code == 200
     else:
-        logger.info(f"Would update Analysis: {owasp_dt_helper.pretty_analysis_request(analysis_request)}")
+        logger.info(f"Would update Analysis: {owasp_dt_helper.pretty_analysis_request(analysis_wrapper.request)}")
 
-def sync_finding_to_work_item(
+def sync_analysis_to_work_item(
     logger: log.Logger,
     owasp_dt_client: AuthenticatedClient,
-    finding: Finding,
-    analysis: Analysis,
+    analysis_wrapper: models.AnalysisWrapper,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
     work_item_wrapper: WorkItemWrapper,
     reference_date: datetime,
 ):
-    work_item_wrapper = map_analysis_to_work_item_wrapper(analysis, work_item_wrapper)
-    globals.custom_mapper.update_work_item_wrapper(work_item_wrapper)
+    globals.mapper.map_analysis_to_work_item(analysis_wrapper, work_item_wrapper)
+
     changes = work_item_wrapper.changes
     if len(changes) > 0:
         if globals.apply_changes:
@@ -243,36 +241,3 @@ def sync_finding_to_work_item(
                 logger.error(e)
         else:
             logger.info(f"Would update WorkItem with the changes: {azure_helper.pretty_changes(changes)}")
-
-def map_work_item_to_analysis_request(work_item_wrapper: models.WorkItemWrapper, finding: Finding):
-    work_item_state = work_item_wrapper.work_item_state
-    analysis_state = AnalysisRequestAnalysisState.NOT_SET
-    suppressed = False
-    if work_item_state == models.WorkItemState.ACTIVE:
-        analysis_state = AnalysisRequestAnalysisState.IN_TRIAGE
-    elif work_item_state == models.WorkItemState.CLOSED:
-        analysis_state = AnalysisRequestAnalysisState.RESOLVED
-        suppressed = True
-
-    return AnalysisRequest(project=finding.component.project, component=finding.component.uuid, vulnerability=finding.vulnerability.uuid, analysis_state=analysis_state, suppressed=suppressed)
-
-
-def map_analysis_to_work_item_wrapper(analysis: Analysis, work_item_wrapper: models.WorkItemWrapper):
-    work_item_state = models.WorkItemState.NEW
-    if analysis.analysis_state in [
-        AnalysisRequestAnalysisState.IN_TRIAGE,
-        AnalysisRequestAnalysisState.EXPLOITABLE,
-    ]:
-        work_item_state = models.WorkItemState.ACTIVE
-    elif analysis.analysis_state in [
-        AnalysisRequestAnalysisState.RESOLVED,
-        AnalysisRequestAnalysisState.FALSE_POSITIVE,
-        AnalysisRequestAnalysisState.NOT_AFFECTED
-    ]:
-        work_item_state = models.WorkItemState.CLOSED
-
-    # if analysis.is_suppressed:
-    #     work_item_state = WorkItemState.CLOSED
-
-    work_item_wrapper.state = work_item_state
-    return work_item_wrapper
