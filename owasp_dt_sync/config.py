@@ -4,7 +4,7 @@ type Mapper = Callable[[str], any]
 
 def reqenv(key: str, mapper: Mapper = None):
     def raise_error():
-        raise Exception(f"Environment variable {key} not defined or empty")
+        raise ValueError(f"Environment variable '{key}' not defined or empty")
 
     return getenv(key, raise_error, mapper)
 

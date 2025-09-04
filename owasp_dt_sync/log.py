@@ -5,8 +5,7 @@ type Logger = logging.Logger | logging.LoggerAdapter
 
 def get_log_level(log_level_str: str):
     log_level = getattr(logging, log_level_str, None)
-    if not isinstance(log_level, int):
-        raise ValueError('Invalid log level: %s' % log_level)
+    assert isinstance(log_level, int), 'Invalid log level: %s' % log_level
     return log_level
 
 logging.basicConfig(level=get_log_level(os.getenv("LOG_LEVEL", "INFO")))

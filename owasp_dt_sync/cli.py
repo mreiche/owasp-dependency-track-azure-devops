@@ -6,6 +6,9 @@ def run():
     try:
         args = parser.parse_args()
         args.func(args)
+    except (AssertionError, ValueError) as e:
+        logger.error(e)
+        exit(2)
     except Exception as e:
         logger.exception(e)
         exit(1)

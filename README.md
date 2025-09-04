@@ -4,14 +4,14 @@ Synchronizes OWASP Dependency Track *Findings* with Azure DevOps *WorkItems*.
 
 ## Usage
 
-If you configured the [environment variables](#environment-variables), the following command will log possible change operations.
+The following command will log possible change operations, when the [environment variables](#environment-variables) are configured:
 ```shell
-owasp_dt_sync
+owasp-dtrack-azure-devops
 ```
 
-And run the command to perform these changes.
+Use the following flag to perform these changes:
 ```shell
-owasp_dt_sync --apply
+owasp-dtrack-azure-devops --apply
 ```
 
 ## Environment variables
@@ -36,7 +36,7 @@ HTTPX_LOG_LEVEL="warning"                           # Log level of the httpx fra
 The *WorkItem* description is being rendered by the [provided template](owasp_dt_sync/templates/work_item.html.jinja2).
 You can pass your own template using
 ```shell
-owasp_dt_sync --template path/to/your/template.jinja2
+owasp-dtrack-azure-devops --template path/to/your/template.jinja2
 ```
 
 ## Custom filtering and mapping
@@ -64,5 +64,5 @@ def map_analysis_to_work_item(analysis_wrapper, work_item_wrapper):
 ```
 and pass this mapper using:
 ```shell
-owasp_dt_sync --mapper path/to/your/mapper.py
+owasp-dtrack-azure-devops --mapper path/to/your/mapper.py
 ```
