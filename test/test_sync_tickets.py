@@ -3,7 +3,7 @@ from is_empty import empty
 from owasp_dt import AuthenticatedClient
 from owasp_dt.models import Finding
 
-from owasp_dt_sync import owasp_dt_helper, azure_helper, models, sync, log
+from owasp_dt_sync import owasp_dt_helper, azure_helper, models, sync, log, globals
 
 
 def test_render_work_item(
@@ -36,14 +36,16 @@ def test_sync_status(
         work_item_tracking_client: WorkItemTrackingClient,
         azure_project: str,
         findings: list[Finding],
-        azure_work_item_type: str,
 ):
-    finding = findings[1]
+    finding = findings[0]
+
+    globals.apply_changes = True
+    globals.fix_references = True
+
     sync.sync_finding(
         log.logger,
         owasp_dt_client,
         work_item_tracking_client,
         azure_project,
-        azure_work_item_type,
         finding,
     )

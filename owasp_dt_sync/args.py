@@ -13,5 +13,6 @@ def create_parser():
     parser.add_argument("--env", help="Environment file to load", type=pathlib.Path, default=None)
     parser.add_argument("--mapper", help="Custom mapper Python script", type=pathlib.Path, default=None)
     parser.add_argument("--template", help="Jinja2 template file path for WorkItems", type=pathlib.Path, default=None)
+    parser.add_argument("--fix-references", help="Whether to fix failing WorkItem references", action='store_true', default=False)
     parser.set_defaults(func=handle_sync)
     return parser

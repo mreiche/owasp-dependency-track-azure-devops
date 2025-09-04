@@ -6,20 +6,13 @@ from typing import Callable
 
 from azure.devops.v7_0.core import JsonPatchOperation
 from azure.devops.v7_1.work import WorkItem
+from is_empty import empty
 from owasp_dt.models import Finding
 from tinystream import Opt
 
-from owasp_dt_sync import config, jinja, log
+from owasp_dt_sync import config, jinja, log, azure_helper
 
 from dataclasses import dataclass
-
-def create_new_work_item_wrapper(findings: list[Finding] = None):
-    from owasp_dt_sync import globals
-    work_item_wrapper = WorkItemWrapper(WorkItem(), findings)
-    work_item_wrapper.title = "New Finding"
-    work_item_wrapper.area = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH", "")
-    globals.custom_mapper.update_work_item_wrapper(work_item_wrapper)
-    return work_item_wrapper
 
 class WorkItemState(StrEnum):
     NEW="New"
