@@ -1,24 +1,14 @@
 from azure.devops.released.work_item_tracking import WorkItemTrackingClient
 from azure.devops.v7_0.work_item_tracking import JsonPatchOperation
-from azure.devops.v7_1.work_item_tracking import WorkItemType, WorkItem
+from azure.devops.v7_1.work_item_tracking import WorkItem
 from is_empty import empty
-from tinystream import Stream
 
 from owasp_dt_sync import azure_helper, config
 
 
-def test_read_work_item_types(
-        work_item_tracking_client: WorkItemTrackingClient,
-        azure_project: str,
-        azure_work_item_type: str
-):
-    assert not empty(azure_work_item_type)
-
-    def _filter_type(type: WorkItemType):
-        return type.reference_name == azure_work_item_type
-
-    types: list[WorkItemType] = work_item_tracking_client.get_work_item_types(azure_project)
-    assert Stream(types).filter(_filter_type).next().present
+def test_find_preferred_work_item_type(work_item_tracking_client: WorkItemTrackingClient, azure_project: str):
+    type = azure_helper.find_best_work_item_type(work_item_tracking_client, azure_project)
+    pass
 
 def test_mask_area_path():
     given_area_path = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH")
@@ -32,8 +22,7 @@ def test_read_work_item_id():
 
 def test_create_and_destroy_work_item(
         work_item_tracking_client: WorkItemTrackingClient,
-        azure_project: str,
-        azure_work_item_type: str
+        azure_project: str
 ):
     area_path = azure_helper.mask_area_path(config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH"))
     # https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/create?view=azure-devops-rest-7.1&tabs=HTTP
@@ -42,7 +31,8 @@ def test_create_and_destroy_work_item(
         JsonPatchOperation(op="add", path="/fields/System.Description", value="This is a test"),
         JsonPatchOperation(op="add", path="/fields/System.AreaPath", value=area_path),
     ]
-    work_item: WorkItem = work_item_tracking_client.create_work_item(document=document, project=azure_project, type=azure_work_item_type)
+    work_item_type = azure_helper.find_best_work_item_type(work_item_tracking_client, azure_project)
+    work_item: WorkItem = work_item_tracking_client.create_work_item(document=document, project=azure_project, type=work_item_type.reference_name)
     assert not empty(work_item.id)
 
     work_item_tracking_client.delete_work_item(id=work_item.id, project=azure_project)

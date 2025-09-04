@@ -1,9 +1,9 @@
-from azure.devops.released.work_item_tracking import WorkItemTrackingClient
-from azure.devops.v7_1.work_item_tracking import WorkItem
+from azure.devops.released.work_item_tracking import WorkItemTrackingClient, WorkItem
+from is_empty import empty
 from owasp_dt import AuthenticatedClient
 from owasp_dt.models import Finding
 
-from owasp_dt_sync import owasp_dt_helper, azure_helper, config, models, sync, log
+from owasp_dt_sync import owasp_dt_helper, azure_helper, models, sync, log
 
 
 def test_render_work_item(
@@ -11,23 +11,24 @@ def test_render_work_item(
         work_item_tracking_client: WorkItemTrackingClient,
         azure_project: str,
         findings: list[Finding],
-        azure_work_item_type: str,
 ):
     finding = findings[1]
-    issue = models.Issue(
-        "New Finding",
-        config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH"),
-        data=models.IssueData(findings=[finding]),
-    )
     analysis = owasp_dt_helper.get_analysis(owasp_dt_client, finding)
     opt_url = owasp_dt_helper.read_azure_devops_work_item_url(analysis)
     if opt_url.absent:
-        work_item: WorkItem = work_item_tracking_client.create_work_item(document=issue.create_work_item_document(), project=azure_project, type=azure_work_item_type)
+        work_item_wrapper = models.create_new_work_item_wrapper([finding])
+        work_item_wrapper.render_description()
+        if empty(work_item_wrapper.work_item_type):
+            work_item_type = azure_helper.find_best_work_item_type(work_item_tracking_client, azure_project)
+            work_item_wrapper.work_item_type = work_item_type.reference_name
+        work_item: WorkItem = work_item_tracking_client.create_work_item(document=work_item_wrapper.changes, project=azure_project, type=work_item_wrapper.work_item_type)
         analysis = owasp_dt_helper.create_azure_devops_work_item_analysis(finding, work_item.url)
         owasp_dt_helper.add_analysis(owasp_dt_client, analysis)
     else:
         work_item_id = azure_helper.read_work_item_id(opt_url.get())
-        work_item_tracking_client.update_work_item(id=work_item_id, document=issue.create_work_item_document(), project=azure_project)
+        work_item_wrapper = models.WorkItemWrapper(WorkItem(), [finding])
+        work_item_wrapper.render_description()
+        work_item_tracking_client.update_work_item(id=work_item_id, document=work_item_wrapper.changes, project=azure_project)
 
 
 def test_sync_status(
@@ -38,7 +39,6 @@ def test_sync_status(
         azure_work_item_type: str,
 ):
     finding = findings[1]
-    issue = models.create_issue_from_findings(findings)
     sync.sync_finding(
         log.logger,
         owasp_dt_client,
@@ -46,5 +46,4 @@ def test_sync_status(
         azure_project,
         azure_work_item_type,
         finding,
-        issue
     )

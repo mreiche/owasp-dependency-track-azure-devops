@@ -1,51 +1,29 @@
-from dataclasses import dataclass
+import importlib.util
+from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Callable
+from pathlib import Path
 
 from azure.devops.v7_0.core import JsonPatchOperation
 from azure.devops.v7_1.work import WorkItem
 from owasp_dt.models import Finding
 from tinystream import Opt
 
-from owasp_dt_sync import azure_helper, config, jinja
-from datetime import datetime, timezone
+from owasp_dt_sync import config, jinja
 
-@dataclass
-class IssueData:
-    findings: None|list[Finding]
 
-class Issue:
-    def __init__(
-            self,
-            title: str,
-            area_path: str,
-            data: IssueData = None,
-    ):
-        self.__title = title
-        self.__area_path = azure_helper.mask_area_path(area_path)
-        self.__data = data
+def load_wrapper_module(mapper_path: Path, modulname="extern"):
+    spec = importlib.util.spec_from_file_location(modulname, mapper_path)
+    modul = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modul)
+    assert callable(getattr(modul, "transform", None)), f"Mapper function {mapper_path}.transform is not callable"
+    return modul
 
-    def render_description(self):
-        return jinja.get_template().render(issue=self)
-
-    @property
-    def data(self):
-        return self.__data
-
-    def create_work_item_document(self):
-        document: list[JsonPatchOperation] = [
-            JsonPatchOperation(op="add", path=WorkItemField.TITLE.field_path, value=self.__title),
-            JsonPatchOperation(op="add", path=WorkItemField.DESCRIPTION.field_path, value=self.render_description()),
-            JsonPatchOperation(op="add", path=WorkItemField.AREA.field_path, value=self.__area_path),
-        ]
-        return document
-
-def create_issue_from_findings(findings: list[Finding]):
-    return Issue(
-        "New Finding",
-        config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH"),
-        data=IssueData(findings=findings),
-    )
+def create_new_work_item_wrapper(findings: list[Finding] = None):
+    work_item_wrapper = WorkItemWrapper(WorkItem(), findings)
+    work_item_wrapper.title = "New Finding"
+    work_item_wrapper.area = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH", "")
+    transform_work_item_wrapper(work_item_wrapper)
+    return work_item_wrapper
 
 class WorkItemState(StrEnum):
     NEW="New"
@@ -64,20 +42,70 @@ class WorkItemField(StrEnum):
         return f"/fields/{self.value}"
 
 class WorkItemWrapper:
-    def __init__(self, work_item: WorkItem):
+    def __init__(self, work_item: WorkItem, findings:list[Finding] = None):
         self.__work_item = work_item
-        self.__changes: list[JsonPatchOperation] = []
+        self.__operations: dict[str, JsonPatchOperation] = {}
+        self.__findings = findings
+        self.work_item_type = ""
 
     def __opt_field_value(self, field: WorkItemField) -> Opt:
-        return Opt(self.__work_item).map_keys("fields", field.value)
+        return Opt(self.__work_item.fields).kmap(field.value)
+
+    def __set_field_value(self, field: WorkItemField, value: any):
+        if not self.__work_item.fields:
+            self.__work_item.fields = {}
+
+        self.__work_item.fields[field.value] = value
+        self.__operations[field.field_path] = JsonPatchOperation(op="add", path=field.field_path, value=value)
+
+    @property
+    def findings(self):
+        return self.__findings
 
     @property
     def work_item(self):
         return self.__work_item
 
+    def update_work_item(self, work_item: WorkItem):
+        self.__work_item = work_item
+        self.__operations.clear()
+
+    @property
+    def title(self) -> str:
+        return self.__opt_field_value(WorkItemField.TITLE).get()
+
+    @title.setter
+    def title(self, value: str):
+        self.__set_field_value(WorkItemField.TITLE, value)
+
     @property
     def state(self) -> WorkItemState:
         return self.__opt_field_value(WorkItemField.STATE).if_absent(lambda: WorkItemState.NEW.value).map(WorkItemState).get()
+
+    @state.setter
+    def state(self, value: WorkItemState|str):
+        if isinstance(value, str):
+            value = WorkItemState(value)
+
+        if self.state != value:
+            self.__set_field_value(WorkItemField.STATE, value.value)
+
+    @property
+    def area(self) -> str:
+        return self.__opt_field_value(WorkItemField.AREA).get("")
+
+    @area.setter
+    def area(self, value: str):
+        if self.area != value:
+            self.__set_field_value(WorkItemField.AREA, value)
+
+    @property
+    def description(self) -> str:
+        return self.__opt_field_value(WorkItemField.DESCRIPTION).get()
+
+    @description.setter
+    def description(self, value: str):
+        self.__set_field_value(WorkItemField.DESCRIPTION, value)
 
     @property
     def changed_date(self) -> datetime:
@@ -87,11 +115,12 @@ class WorkItemWrapper:
         else:
             return datetime.fromtimestamp(0, tz=timezone.utc)
 
-    @state.setter
-    def state(self, value: WorkItemState):
-        if self.state != value:
-            self.__changes.append(JsonPatchOperation(op="add", path=WorkItemField.STATE.field_path, value=value.value))
-
     @property
     def changes(self):
-        return self.__changes
+        return list(self.__operations.values())
+
+    def render_description(self):
+        self.description = jinja.get_template().render(work_item_wrapper=self)
+
+def transform_work_item_wrapper(work_item_wrapper: WorkItemWrapper):
+    pass

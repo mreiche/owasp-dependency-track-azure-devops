@@ -1,4 +1,4 @@
-owasp-dependency-track-client==4.13.5
+owasp-dependency-track-client==4.13.6
 is_empty==1.0.1
 tinystream==0.1.17
 dotenv== 0.9.9

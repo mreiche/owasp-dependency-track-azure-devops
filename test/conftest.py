@@ -20,10 +20,6 @@ def azure_project() -> str:
     return config.reqenv("AZURE_PROJECT")
 
 @pytest.fixture
-def azure_work_item_type():
-    return config.getenv("AZURE_WORK_ITEM_TYPE")
-
-@pytest.fixture
 def owasp_dt_client() -> AuthenticatedClient:
     return owasp_dt_helper.create_client_from_env()
 
