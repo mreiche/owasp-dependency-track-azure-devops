@@ -47,19 +47,18 @@ You can filter findings and apply changes on the work items using custom mappers
 def process_finding(finding):
     return finding.component.project_name == "My_Project"
 
-def new_work_item(work_item_wrapper):
-    work_item_wrapper.title = "New Finding"
+def new_work_item(work_item_adapter):
+    work_item_adapter.title = "New Finding"
 
-    if work_item_wrapper.finding.component.project_name == "Other project":
-        work_item_wrapper.area = "Path\\To\\My\\Custom\\Area"
+    if work_item_adapter.finding.component.project_name == "Other project":
+        work_item_adapter.area = "Path\\To\\My\\Custom\\Area"
         
-
-def map_analysis_to_work_item(analysis_wrapper, work_item_wrapper):
+def map_analysis_to_work_item(analysis_adapter, work_item_adapter):
     # Call this method if you want to re-render the ticket description
-    work_item_wrapper.render_description()
+    work_item_adapter.render_description()
 
 # Remove mappers you dont need
-# def map_work_item_to_analysis(work_item_wrapper, analysis_wrapper):
+# def map_work_item_to_analysis(work_item_adapter, analysis_adapter):
 #     pass
 ```
 and pass this mapper using:

@@ -24,7 +24,7 @@ class WorkItemField(StrEnum):
         return f"/fields/{self.value}"
 
 
-class WorkItemWrapper:
+class WorkItemAdapter:
     def __init__(self, work_item: WorkItem, finding: Finding = None):
         self.__work_item = work_item
         self.__operations: dict[str, JsonPatchOperation] = {}
@@ -49,7 +49,7 @@ class WorkItemWrapper:
     def work_item(self):
         return self.__work_item
 
-    def update_work_item(self, work_item: WorkItem):
+    def set_new_work_item(self, work_item: WorkItem):
         self.__work_item = work_item
         self.__operations.clear()
 
@@ -100,10 +100,10 @@ class WorkItemWrapper:
         return list(self.__operations.values())
 
     def render_description(self):
-        self.description = jinja.get_template().render(work_item_wrapper=self)
+        self.description = jinja.get_template().render(work_item_adapter=self)
 
 
-class AnalysisWrapper:
+class AnalysisAdapter:
     def __init__(self, analysis: Analysis, finding: Finding):
         self.__analysis = analysis
         self.__analysis_request = AnalysisRequest(project=finding.component.project, component=finding.component.uuid, vulnerability=finding.vulnerability.uuid)
@@ -165,9 +165,9 @@ class AnalysisWrapper:
 @dataclass
 class MapperModule:
     process_finding: Callable[[Finding], bool]
-    new_work_item: Callable[[WorkItemWrapper], None]
-    map_work_item_to_analysis: Callable[[WorkItemWrapper, AnalysisWrapper], None]
-    map_analysis_to_work_item: Callable[[AnalysisWrapper, WorkItemWrapper], None]
+    new_work_item: Callable[[WorkItemAdapter], None]
+    map_work_item_to_analysis: Callable[[WorkItemAdapter, AnalysisAdapter], None]
+    map_analysis_to_work_item: Callable[[AnalysisAdapter, WorkItemAdapter], None]
     function_names = ["process_finding", "new_work_item", "map_work_item_to_analysis", "map_analysis_to_work_item"]
 
 
@@ -186,36 +186,36 @@ def load_custom_mapper_module(mapper_path: Path):
             globals.mapper.__setattr__(function_name, mapper_function)
 
 def map_work_item_to_analysis(
-    work_item_wrapper: WorkItemWrapper,
-    analysis_wrapper: AnalysisWrapper
+    work_item_adapter: WorkItemAdapter,
+    analysis_adapter: AnalysisAdapter
 ):
-    analysis_wrapper.suppressed = False
+    analysis_adapter.suppressed = False
 
-    if work_item_wrapper.state == "New":
-        analysis_wrapper.state = "NOT_SET"
-    elif work_item_wrapper.state in ["Closed", "Removed"]:
-        analysis_wrapper.state = "RESOLVED"
-        analysis_wrapper.suppressed = True
+    if work_item_adapter.state == "New":
+        analysis_adapter.state = "NOT_SET"
+    elif work_item_adapter.state in ["Closed", "Removed"]:
+        analysis_adapter.state = "RESOLVED"
+        analysis_adapter.suppressed = True
     else:
-        analysis_wrapper.state = "IN_TRIAGE"
+        analysis_adapter.state = "IN_TRIAGE"
 
 def map_analysis_to_work_item(
-    analysis_wrapper: AnalysisWrapper,
-    work_item_wrapper: WorkItemWrapper
+    analysis_adapter: AnalysisAdapter,
+    work_item_adapter: WorkItemAdapter
 ):
-    if analysis_wrapper.state in [
+    if analysis_adapter.state in [
         "IN_TRIAGE",
         "EXPLOITABLE",
     ]:
-        work_item_wrapper.state = "Active"
-    elif analysis_wrapper.state in [
+        work_item_adapter.state = "Active"
+    elif analysis_adapter.state in [
         "RESOLVED",
         "FALSE_POSITIVE",
         "NOT_AFFECTED",
     ]:
-        work_item_wrapper.state = "Closed"
+        work_item_adapter.state = "Closed"
     else:
-        work_item_wrapper.state = "New"
+        work_item_adapter.state = "New"
 
 default_mapper = MapperModule(
     process_finding=lambda x: True,

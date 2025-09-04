@@ -10,7 +10,7 @@ from owasp_dt.models import Finding, Analysis
 from tinystream import Stream
 
 from owasp_dt_sync import owasp_dt_helper, azure_helper, models, config, log, globals
-from owasp_dt_sync.models import WorkItemWrapper
+from owasp_dt_sync.models import WorkItemAdapter
 
 
 def handle_sync(args):
@@ -29,9 +29,9 @@ def handle_sync(args):
     if args.mapper:
         models.load_custom_mapper_module(args.mapper)
 
+    azure_project = config.reqenv("AZURE_PROJECT")
     azure_connection = azure_helper.create_connection_from_env()
     work_item_tracking_client = azure_connection.clients.get_work_item_tracking_client()
-    azure_project = config.reqenv("AZURE_PROJECT")
     owasp_dt_client = owasp_dt_helper.create_client_from_env()
     findings = owasp_dt_helper.load_and_filter_findings(
         client=owasp_dt_client,
@@ -54,8 +54,8 @@ def handle_sync(args):
             finding,
         )
 
-def find_newer(work_item_wrapper: WorkItemWrapper, analysis: Analysis) -> tuple[WorkItemWrapper | Analysis, datetime]:
-    work_item_changed_data = work_item_wrapper.changed_date
+def find_newer(work_item_adapter: WorkItemAdapter, analysis: Analysis) -> tuple[WorkItemAdapter | Analysis, datetime]:
+    work_item_changed_data = work_item_adapter.changed_date
     comments = owasp_dt_helper.read_comments_desc(analysis).collect()
     if len(comments) > 0:
         last_comment = comments[-1]
@@ -64,7 +64,7 @@ def find_newer(work_item_wrapper: WorkItemWrapper, analysis: Analysis) -> tuple[
         last_comment_date = datetime.fromtimestamp(0, tz=timezone.utc)
 
     if work_item_changed_data > last_comment_date:
-        return work_item_wrapper, work_item_changed_data
+        return work_item_adapter, work_item_changed_data
     else:
         return analysis, last_comment_date
 
@@ -81,7 +81,7 @@ def sync_finding(
     opt_url = owasp_dt_helper.read_azure_devops_work_item_url(analysis)
 
     if opt_url.absent:
-        work_item_wrapper = create_new_work_item_wrapper(
+        work_item_adapter = create_new_work_item_adapter(
             work_item_tracking_client=work_item_tracking_client,
             azure_project=azure_project,
             finding=finding,
@@ -91,27 +91,26 @@ def sync_finding(
             work_item_logger, analysis = create_work_item(
                 logger=finding_logger,
                 work_item_tracking_client=work_item_tracking_client,
-                work_item_wrapper=work_item_wrapper,
+                work_item_adapter=work_item_adapter,
                 azure_project=azure_project,
                 owasp_dt_client=owasp_dt_client,
-                finding=finding,
             )
         else:
-            finding_logger.info(f"Would create WorkItem type '{work_item_wrapper.work_item_type}': {azure_helper.pretty_changes(work_item_wrapper.changes)}")
+            finding_logger.info(f"Would create WorkItem type '{work_item_adapter.work_item_type}': {azure_helper.pretty_changes(work_item_adapter.changes)}")
             work_item_logger = log.get_logger(finding_logger, work_item=None)
-            work_item_wrapper.update_work_item(WorkItem())
+            work_item_adapter.set_new_work_item(WorkItem())
     else:
         work_item_id = azure_helper.read_work_item_id(opt_url.get())
-        work_item_wrapper = models.WorkItemWrapper(WorkItem(id=work_item_id), finding)
+        work_item_adapter = models.WorkItemAdapter(WorkItem(id=work_item_id), finding)
 
         try:
             work_item: WorkItem = work_item_tracking_client.get_work_item(id=work_item_id, project=azure_project)
-            work_item_wrapper.update_work_item(work_item)
+            work_item_adapter.set_new_work_item(work_item)
             work_item_logger = log.get_logger(finding_logger, work_item=work_item_id)
         except AzureDevOpsServiceError as e:
             finding_logger.error(e)
             if globals.fix_references:
-                work_item_wrapper = create_new_work_item_wrapper(
+                work_item_adapter = create_new_work_item_adapter(
                     work_item_tracking_client=work_item_tracking_client,
                     azure_project=azure_project,
                     finding=finding,
@@ -120,9 +119,8 @@ def sync_finding(
                     logger=finding_logger,
                     work_item_tracking_client=work_item_tracking_client,
                     azure_project=azure_project,
-                    work_item_wrapper=work_item_wrapper,
+                    work_item_adapter=work_item_adapter,
                     owasp_dt_client=owasp_dt_client,
-                    finding=finding,
                 )
 
     sync_items(
@@ -130,43 +128,42 @@ def sync_finding(
         owasp_dt_client=owasp_dt_client,
         work_item_tracking_client=work_item_tracking_client,
         azure_project=azure_project,
-        work_item_wrapper=work_item_wrapper,
+        work_item_adapter=work_item_adapter,
         analysis=analysis
     )
 
-def create_new_work_item_wrapper(
+def create_new_work_item_adapter(
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
     finding: Finding = None
 ):
-    work_item_wrapper = WorkItemWrapper(WorkItem(), finding)
-    work_item_wrapper.title = "New Finding"
-    work_item_wrapper.area = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH", "")
-    globals.mapper.new_work_item(work_item_wrapper)
-    work_item_wrapper.render_description()
+    work_item_adapter = WorkItemAdapter(WorkItem(), finding)
+    work_item_adapter.title = "New Finding"
+    work_item_adapter.area = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH", "")
+    globals.mapper.new_work_item(work_item_adapter)
+    work_item_adapter.render_description()
 
-    if empty(work_item_wrapper.work_item_type):
+    if empty(work_item_adapter.work_item_type):
         work_item_type = azure_helper.find_best_work_item_type(work_item_tracking_client, azure_project)
-        work_item_wrapper.work_item_type = work_item_type.reference_name
+        work_item_adapter.work_item_type = work_item_type.reference_name
 
-    return work_item_wrapper
+    return work_item_adapter
 
 def create_work_item(
     logger: log.Logger,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    work_item_wrapper: WorkItemWrapper,
-    owasp_dt_client: AuthenticatedClient,
-    finding: Finding,
+    work_item_adapter: WorkItemAdapter,
+    owasp_dt_client: AuthenticatedClient
 ):
-    work_item: WorkItem = work_item_tracking_client.create_work_item(document=work_item_wrapper.changes, project=azure_project, type=work_item_wrapper.work_item_type)
-    work_item_wrapper.update_work_item(work_item)
+    work_item: WorkItem = work_item_tracking_client.create_work_item(document=work_item_adapter.changes, project=azure_project, type=work_item_adapter.work_item_type)
+    work_item_adapter.set_new_work_item(work_item)
 
-    analysis = owasp_dt_helper.create_azure_devops_work_item_analysis(finding, work_item.url)
+    analysis = owasp_dt_helper.create_azure_devops_work_item_analysis(work_item_adapter.finding, work_item.url)
     owasp_dt_helper.add_analysis(owasp_dt_client, analysis)
 
-    logger = log.get_logger(logger, work_item=work_item_wrapper.work_item.id)
-    logger.info(f"Created new WorkItem type '{work_item_wrapper.work_item_type}'")
+    logger = log.get_logger(logger, work_item=work_item_adapter.work_item.id)
+    logger.info(f"Created new WorkItem type '{work_item_adapter.work_item_type}'")
 
     return logger, analysis
 
@@ -175,29 +172,29 @@ def sync_items(
     owasp_dt_client: AuthenticatedClient,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    work_item_wrapper: WorkItemWrapper,
+    work_item_adapter: WorkItemAdapter,
     analysis: Analysis,
 ):
-    newer, reference_date = find_newer(work_item_wrapper, analysis)
-    analysis_wrapper = models.AnalysisWrapper(analysis, work_item_wrapper.finding)
+    newer, reference_date = find_newer(work_item_adapter, analysis)
+    analysis_adapter = models.AnalysisAdapter(analysis, work_item_adapter.finding)
     if isinstance(newer, Analysis):
         sync_analysis_to_work_item(
             logger=logger,
             owasp_dt_client=owasp_dt_client,
-            analysis_wrapper=analysis_wrapper,
+            analysis_adapter=analysis_adapter,
             work_item_tracking_client=work_item_tracking_client,
             azure_project=azure_project,
-            work_item_wrapper=work_item_wrapper,
+            work_item_adapter=work_item_adapter,
             reference_date=reference_date,
         )
-    elif isinstance(newer, WorkItemWrapper):
+    elif isinstance(newer, WorkItemAdapter):
         sync_work_item_to_analysis(
             logger=logger,
             work_item_tracking_client=work_item_tracking_client,
             azure_project=azure_project,
-            work_item_wrapper=work_item_wrapper,
+            work_item_adapter=work_item_adapter,
             owasp_dt_client=owasp_dt_client,
-            analysis_wrapper=analysis_wrapper,
+            analysis_adapter=analysis_adapter,
             reference_date=reference_date,
         )
 
@@ -206,36 +203,36 @@ def sync_work_item_to_analysis(
     logger: log.Logger,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    work_item_wrapper: WorkItemWrapper,
+    work_item_adapter: WorkItemAdapter,
     owasp_dt_client: AuthenticatedClient,
-    analysis_wrapper: models.AnalysisWrapper,
+    analysis_adapter: models.AnalysisAdapter,
     reference_date: datetime,
 ):
-    globals.mapper.map_work_item_to_analysis(work_item_wrapper, analysis_wrapper)
+    globals.mapper.map_work_item_to_analysis(work_item_adapter, analysis_adapter)
 
     if globals.apply_changes:
-        logger.info(f"Update Analysis: {owasp_dt_helper.pretty_analysis_request(analysis_wrapper.request)}")
-        resp = update_analysis.sync_detailed(client=owasp_dt_client, body=analysis_wrapper.request)
+        logger.info(f"Update Analysis: {owasp_dt_helper.pretty_analysis_request(analysis_adapter.request)}")
+        resp = update_analysis.sync_detailed(client=owasp_dt_client, body=analysis_adapter.request)
         assert resp.status_code == 200
     else:
-        logger.info(f"Would update Analysis: {owasp_dt_helper.pretty_analysis_request(analysis_wrapper.request)}")
+        logger.info(f"Would update Analysis: {owasp_dt_helper.pretty_analysis_request(analysis_adapter.request)}")
 
 def sync_analysis_to_work_item(
     logger: log.Logger,
     owasp_dt_client: AuthenticatedClient,
-    analysis_wrapper: models.AnalysisWrapper,
+    analysis_adapter: models.AnalysisAdapter,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    work_item_wrapper: WorkItemWrapper,
+    work_item_adapter: WorkItemAdapter,
     reference_date: datetime,
 ):
-    globals.mapper.map_analysis_to_work_item(analysis_wrapper, work_item_wrapper)
+    globals.mapper.map_analysis_to_work_item(analysis_adapter, work_item_adapter)
 
-    changes = work_item_wrapper.changes
+    changes = work_item_adapter.changes
     if len(changes) > 0:
         if globals.apply_changes:
             try:
-                work_item_tracking_client.update_work_item(id=work_item_wrapper.work_item.id, document=changes, project=azure_project)
+                work_item_tracking_client.update_work_item(id=work_item_adapter.work_item.id, document=changes, project=azure_project)
                 logger.info(f"Updated WorkItem")
             except AzureDevOpsServiceError as e:
                 logger.error(e)
