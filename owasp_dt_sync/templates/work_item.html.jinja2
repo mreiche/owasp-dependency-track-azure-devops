@@ -1,4 +1,4 @@
-{% set finding = work_item_wrapper.finding %}
+{% set finding = work_item_adapter.finding %}
 <h1>Finding in project <a href="{{ env('OWASP_DTRACK_URL') }}/projects/{{ finding.component.project }}/findings">{{ finding.component.project_name }}:{{ finding.component.project_version }}</a></h1>
 <ul>
     <li>Component: {{ finding.component.name }}:{{ finding.component.version }} (latest {{ finding.component.latest_version }})</li>
