@@ -39,13 +39,15 @@ def load_and_filter_findings(
         client: AuthenticatedClient,
         cvss2_min_score: float = 0,
         cvss3_min_score: float = 0,
+        load_suppressed: bool = False,
+        load_inactive: bool = False,
 ) -> list[Finding]:
     resp = get_all_findings_1.sync_detailed(
         client=client,
-        show_inactive=False,
-        show_suppressed=False,
-        cvssv_2_from=Opt(cvss2_min_score).filter(not_empty).filter(lambda v: v > 0).get(None),
-        cvssv_3_from=Opt(cvss3_min_score).filter(not_empty).filter(lambda v: v > 0).get(None),
+        show_inactive=load_inactive,
+        show_suppressed=load_suppressed,
+        cvssv_2_from=cvss2_min_score if cvss2_min_score > 0 else None,
+        cvssv_3_from=cvss3_min_score if cvss3_min_score > 0 else None,
     )
     assert resp.status_code == 200
     return resp.parsed
@@ -84,14 +86,15 @@ def find_comment_prefix(analysis: Analysis, prefix: str):
     def _find(comment: AnalysisComment):
         return comment.comment.startswith(prefix)
 
-    return read_comments(analysis).find(_find)
+    return read_comments_desc(analysis).find(_find)
 
-def read_comments(analysis: Analysis) -> Stream[AnalysisComment]:
+def read_comments_desc(analysis: Analysis) -> Stream[AnalysisComment]:
     def _sort_oldest_first(a: AnalysisComment, b: AnalysisComment):
-        return a.timestamp - b.timestamp
+        return b.timestamp - a.timestamp
 
     return (
-        Opt(analysis.analysis_comments)
+        Opt(analysis)
+        .kmap("analysis_comments")
         .filter_type(Iterable)
         .stream()
         .sort(_sort_oldest_first)

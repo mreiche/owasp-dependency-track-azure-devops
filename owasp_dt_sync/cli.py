@@ -7,7 +7,7 @@ def run():
         args = parser.parse_args()
         args.func(args)
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         exit(1)
 
 if __name__ == "__main__":  # pragma: no cover

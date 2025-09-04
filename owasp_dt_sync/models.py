@@ -1,4 +1,5 @@
 import importlib.util
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
@@ -6,42 +7,28 @@ from typing import Callable
 
 from azure.devops.v7_0.core import JsonPatchOperation
 from azure.devops.v7_1.work import WorkItem
-from owasp_dt.models import Finding
+from owasp_dt.models import Finding, AnalysisRequest, AnalysisRequestAnalysisState, AnalysisRequestAnalysisJustification, AnalysisAnalysisResponse, AnalysisRequestAnalysisResponse, Analysis, AnalysisAnalysisState, AnalysisAnalysisJustification
 from tinystream import Opt
 
-from owasp_dt_sync import config, jinja, log
-
-from dataclasses import dataclass
-
-def create_new_work_item_wrapper(findings: list[Finding] = None):
-    from owasp_dt_sync import globals
-    work_item_wrapper = WorkItemWrapper(WorkItem(), findings)
-    work_item_wrapper.title = "New Finding"
-    work_item_wrapper.area = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH", "")
-    globals.custom_mapper.update_work_item_wrapper(work_item_wrapper)
-    return work_item_wrapper
-
-class WorkItemState(StrEnum):
-    NEW="New"
-    ACTIVE="Active"
-    CLOSED="Closed"
+from owasp_dt_sync import jinja, log
 
 class WorkItemField(StrEnum):
-    TITLE="System.Title"
-    DESCRIPTION="System.Description"
-    AREA="System.AreaPath"
-    STATE="System.State"
-    CHANGED_DATE="System.ChangedDate"
+    TITLE = "System.Title"
+    DESCRIPTION = "System.Description"
+    AREA = "System.AreaPath"
+    STATE = "System.State"
+    CHANGED_DATE = "System.ChangedDate"
 
     @property
     def field_path(self):
         return f"/fields/{self.value}"
 
+
 class WorkItemWrapper:
-    def __init__(self, work_item: WorkItem, findings:list[Finding] = None):
+    def __init__(self, work_item: WorkItem, finding: Finding = None):
         self.__work_item = work_item
         self.__operations: dict[str, JsonPatchOperation] = {}
-        self.__findings = findings
+        self.__finding = finding
         self.work_item_type = ""
 
     def __opt_field_value(self, field: WorkItemField) -> Opt:
@@ -55,8 +42,8 @@ class WorkItemWrapper:
         self.__operations[field.field_path] = JsonPatchOperation(op="add", path=field.field_path, value=value)
 
     @property
-    def findings(self):
-        return self.__findings
+    def finding(self):
+        return self.__finding
 
     @property
     def work_item(self):
@@ -75,20 +62,13 @@ class WorkItemWrapper:
         self.__set_field_value(WorkItemField.TITLE, value)
 
     @property
-    def work_item_state(self) -> WorkItemState:
-        return self.__opt_field_value(WorkItemField.STATE).if_absent(lambda: WorkItemState.NEW.value).map(WorkItemState).get()
-
-    @property
     def state(self) -> str:
-        return self.__opt_field_value(WorkItemField.STATE).get("")
+        return self.__opt_field_value(WorkItemField.STATE).get("New")
 
     @state.setter
-    def state(self, value: WorkItemState|str):
-        if isinstance(value, str):
-            value = WorkItemState(value)
-
+    def state(self, value: str):
         if self.state != value:
-            self.__set_field_value(WorkItemField.STATE, value.value)
+            self.__set_field_value(WorkItemField.STATE, value)
 
     @property
     def area(self) -> str:
@@ -122,23 +102,124 @@ class WorkItemWrapper:
     def render_description(self):
         self.description = jinja.get_template().render(work_item_wrapper=self)
 
+
+class AnalysisWrapper:
+    def __init__(self, analysis: Analysis, finding: Finding):
+        self.__analysis = analysis
+        self.__analysis_request = AnalysisRequest(project=finding.component.project, component=finding.component.uuid, vulnerability=finding.vulnerability.uuid)
+
+    @property
+    def state(self) -> str:
+        return Opt(self.__analysis).map_keys("analysis_state", "value").get("")
+
+    @state.setter
+    def state(self, value: str):
+        if self.state != value:
+            self.__analysis.analysis_state = AnalysisAnalysisState(value.upper())
+            self.__analysis_request.analysis_state = AnalysisRequestAnalysisState(value.upper())
+
+    @property
+    def justification(self) -> str:
+        return Opt(self.__analysis).map_keys("analysis_justification", "value").get("")
+
+    @justification.setter
+    def justification(self, value: str):
+        if self.justification != value:
+            self.__analysis.analysis_justification = AnalysisAnalysisJustification(value.upper())
+            self.__analysis_request.analysis_justification = AnalysisRequestAnalysisJustification(value.upper())
+
+    @property
+    def response(self) -> str:
+        return Opt(self.__analysis).map_keys("analysis_response", "value").get("")
+
+    @response.setter
+    def response(self, value: str):
+        if self.response != value:
+            self.__analysis.analysis_response = AnalysisAnalysisResponse(value.upper())
+            self.__analysis_request.analysis_response = AnalysisRequestAnalysisResponse(value.upper())
+
+    @property
+    def details(self) -> str:
+        return Opt(self.__analysis).kmap("analysis_details").filter_type(str).get("")
+
+    @details.setter
+    def details(self, value: str):
+        if self.details != value:
+            self.__analysis.analysis_details = value
+            self.__analysis_request.analysis_details = value
+
+    @property
+    def suppressed(self) -> bool:
+        return Opt(self.__analysis).kmap("is_suppressed").filter_type(bool).get(False)
+
+    @suppressed.setter
+    def suppressed(self, value: bool):
+        self.__analysis.is_suppressed = value
+        self.__analysis_request.is_suppressed = value
+
+    @property
+    def request(self):
+        return self.__analysis_request
+
+
 @dataclass
 class MapperModule:
     process_finding: Callable[[Finding], bool]
-    update_work_item_wrapper: Callable[[WorkItemWrapper], None]
-    method_names = ["process_finding", "update_work_item_wrapper"]
+    new_work_item: Callable[[WorkItemWrapper], None]
+    map_work_item_to_analysis: Callable[[WorkItemWrapper, AnalysisWrapper], None]
+    map_analysis_to_work_item: Callable[[AnalysisWrapper, WorkItemWrapper], None]
+    function_names = ["process_finding", "new_work_item", "map_work_item_to_analysis", "map_analysis_to_work_item"]
 
-def load_custom_mapper_module(mapper_path: Path) -> MapperModule:
+
+def load_custom_mapper_module(mapper_path: Path):
+    from owasp_dt_sync import globals
+
     spec = importlib.util.spec_from_file_location(str(mapper_path), mapper_path)
     modul = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(modul)
-    for method in MapperModule.method_names:
-        assert callable(getattr(modul, method, None)), f"Mapper function '{modul.__name__}.{method}' is not callable"
 
-    log.logger.info(f"Using custom mapper: '{mapper_path}'")
-    return modul
+    for function_name in MapperModule.function_names:
+        mapper_function = getattr(modul, function_name, None)
+        if mapper_function:
+            assert callable(mapper_function), f"Mapper function '{modul.__name__}:{function_name}' is not callable"
+            log.logger.info(f"Connect custom mapper function: '{mapper_path}:{function_name}'")
+            globals.mapper.__setattr__(function_name, mapper_function)
 
-null_mapper = MapperModule(
+def map_work_item_to_analysis(
+    work_item_wrapper: WorkItemWrapper,
+    analysis_wrapper: AnalysisWrapper
+):
+    analysis_wrapper.suppressed = False
+
+    if work_item_wrapper.state == "New":
+        analysis_wrapper.state = "NOT_SET"
+    elif work_item_wrapper.state in ["Closed", "Removed"]:
+        analysis_wrapper.state = "RESOLVED"
+        analysis_wrapper.suppressed = True
+    else:
+        analysis_wrapper.state = "IN_TRIAGE"
+
+def map_analysis_to_work_item(
+    analysis_wrapper: AnalysisWrapper,
+    work_item_wrapper: WorkItemWrapper
+):
+    if analysis_wrapper.state in [
+        "IN_TRIAGE",
+        "EXPLOITABLE",
+    ]:
+        work_item_wrapper.state = "Active"
+    elif analysis_wrapper.state in [
+        "RESOLVED",
+        "FALSE_POSITIVE",
+        "NOT_AFFECTED",
+    ]:
+        work_item_wrapper.state = "Closed"
+    else:
+        work_item_wrapper.state = "New"
+
+default_mapper = MapperModule(
     process_finding=lambda x: True,
-    update_work_item_wrapper=lambda x: None
+    new_work_item=lambda x: None,
+    map_analysis_to_work_item=map_analysis_to_work_item,
+    map_work_item_to_analysis=map_work_item_to_analysis,
 )
