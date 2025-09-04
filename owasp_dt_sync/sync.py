@@ -6,19 +6,26 @@ from is_empty import empty
 from owasp_dt import AuthenticatedClient
 from owasp_dt.api.analysis import update_analysis
 from owasp_dt.models import Finding, Analysis, AnalysisRequest, AnalysisRequestAnalysisState
+from tinystream import Stream
 
-from owasp_dt_sync import owasp_dt_helper, azure_helper, models, config, log
+from owasp_dt_sync import owasp_dt_helper, azure_helper, models, config, log, globals
 from owasp_dt_sync.models import WorkItemWrapper
 
 
 def handle_sync(args):
-    config.apply_changes = args.apply
+    globals.apply_changes = args.apply
+
+    if not globals.apply_changes:
+        log.logger.info("Running in dry-run mode (add --apply parameter to perform changes)")
+
+    if args.template:
+        globals.template_path = args.template
 
     if args.env:
-        dotenv.load_dotenv(args.env)
+        assert dotenv.load_dotenv(args.env), f"Unable to load env file: '{args.env}'"
 
-    if not config.apply_changes:
-        log.logger.info("Running in dry-run mode")
+    if args.mapper:
+        globals.custom_mapper = models.load_custom_mapper_module(args.mapper)
 
     azure_connection = azure_helper.create_connection_from_env()
     work_item_tracking_client = azure_connection.clients.get_work_item_tracking_client()
@@ -29,7 +36,7 @@ def handle_sync(args):
         cvss2_min_score=args.cvss_min_score,
         cvss3_min_score=args.cvss_min_score,
     )
-    for finding in findings:
+    for finding in Stream(findings).filter(globals.custom_mapper.process_finding):
         logger = log.get_logger(
             project=f"{finding.component.project_name}:{finding.component.project_version if isinstance(finding.component.project_version, str) else None}",
             component=f"{finding.component.name}:{finding.component.version}",
@@ -73,7 +80,7 @@ def sync_finding(
             work_item_type = azure_helper.find_best_work_item_type(work_item_tracking_client, azure_project)
             work_item_wrapper.work_item_type = work_item_type.reference_name
         changes = work_item_wrapper.changes
-        if config.apply_changes:
+        if globals.apply_changes:
             work_item: WorkItem = work_item_tracking_client.create_work_item(document=changes, project=azure_project, type=work_item_wrapper.work_item_type)
             work_item_wrapper.update_work_item(work_item)
             analysis = owasp_dt_helper.create_azure_devops_work_item_analysis(finding, work_item.url)
@@ -145,7 +152,7 @@ def sync_work_item_to_finding(
     reference_date: datetime,
 ):
     analysis_request = map_work_item_to_analysis_request(work_item_wrapper, finding)
-    if config.apply_changes:
+    if globals.apply_changes:
         logger.info(f"Update Analysis")
         resp = update_analysis.sync_detailed(client=owasp_dt_client, body=analysis_request)
         assert resp.status_code == 200
@@ -163,17 +170,17 @@ def sync_finding_to_work_item(
     reference_date: datetime,
 ):
     work_item_wrapper = map_analysis_to_work_item_wrapper(analysis, work_item_wrapper)
-    models.transform_work_item_wrapper(work_item_wrapper)
+    globals.custom_mapper.update_work_item_wrapper(work_item_wrapper)
     changes = work_item_wrapper.changes
     if len(changes) > 0:
-        if config.apply_changes:
+        if globals.apply_changes:
             logger.info(f"Update WorkItem")
             work_item_tracking_client.update_work_item(id=work_item_wrapper.work_item.id, document=changes, project=azure_project)
         else:
             logger.info(f"Would update WorkItem with the changes: {azure_helper.pretty_changes(changes)}")
 
 def map_work_item_to_analysis_request(work_item_wrapper: models.WorkItemWrapper, finding: Finding):
-    work_item_state = work_item_wrapper.state
+    work_item_state = work_item_wrapper.work_item_state
     analysis_state = AnalysisRequestAnalysisState.NOT_SET
     suppressed = False
     if work_item_state == models.WorkItemState.ACTIVE:

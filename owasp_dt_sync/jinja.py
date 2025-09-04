@@ -1,18 +1,15 @@
 import os
-from pathlib import Path
 
 import jinja2
 
-from owasp_dt_sync import config
-
-__template_file = Path(config.getenv("TEMPLATE", "templates/issue.html.jinja2"))
 __template_env: jinja2.Environment = None
 
 def setup_jina_env():
+    from owasp_dt_sync import globals
     global __template_env
     if not __template_env:
         search_paths = []
-        search_paths.append(__template_file.parent)
+        search_paths.append(globals.template_path.parent)
         template_loader = jinja2.FileSystemLoader(searchpath=search_paths)
         __template_env = jinja2.Environment(
             loader=template_loader,
@@ -27,4 +24,5 @@ def setup_jina_env():
 
 def get_template():
     env = setup_jina_env()
-    return env.get_template(__template_file.name)
+    from owasp_dt_sync import globals
+    return env.get_template(globals.template_path.name)
