@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Iterable
+from typing import Iterable, Iterator
 
 from is_empty import not_empty
 from owasp_dt import Client, AuthenticatedClient
@@ -8,7 +8,7 @@ from owasp_dt.api.finding import get_all_findings_1
 from owasp_dt.models import Finding, AnalysisRequest, Analysis, AnalysisComment
 from tinystream import Stream, Opt
 
-from owasp_dt_sync import config
+from owasp_dt_sync import config, globals
 
 __AZURE_DEVOPS_WORK_ITEM_PREFIX="Azure DevOps work item: "
 
@@ -30,18 +30,18 @@ def create_client_from_env() -> AuthenticatedClient:
 
 def pretty_analysis_request(analysis_request: AnalysisRequest):
     req_dict = analysis_request.to_dict()
-    del req_dict["component"]
-    del req_dict["vulnerability"]
-    del req_dict["project"]
+    for key in ("component", "vulnerability", "project"):
+        del req_dict[key]
+
     return req_dict
 
 def load_and_filter_findings(
-        client: AuthenticatedClient,
-        cvss2_min_score: float = 0,
-        cvss3_min_score: float = 0,
-        load_suppressed: bool = False,
-        load_inactive: bool = False,
-) -> list[Finding]:
+    client: AuthenticatedClient,
+    cvss2_min_score: float = 0,
+    cvss3_min_score: float = 0,
+    load_suppressed: bool = False,
+    load_inactive: bool = False,
+) -> Iterator[Finding]:
     resp = get_all_findings_1.sync_detailed(
         client=client,
         show_inactive=load_inactive,
@@ -50,11 +50,8 @@ def load_and_filter_findings(
         cvssv_3_from=cvss3_min_score if cvss3_min_score > 0 else None,
     )
     assert resp.status_code == 200
-    return resp.parsed
-
-
-def finding2str(finding: Finding):
-    return f"{finding.component.project_name}:{finding.component.project_version};{finding.component.name}:{finding.component.version};{finding.vulnerability.vuln_id}"
+    findings = resp.parsed
+    return filter(globals.mapper.process_finding, findings)
 
 def finding_is_latest(finding: Finding):
     return finding.component.additional_properties["projectVersion"] == finding.component.additional_properties["latestVersion"]

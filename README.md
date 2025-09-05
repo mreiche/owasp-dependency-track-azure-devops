@@ -28,7 +28,7 @@ OWASP_DTRACK_VERIFY_SSL="False"                     # Do not verify SSL
 OWASP_DTRACK_API_KEY=""                             # Your OWASP Dependency Track API Key
 HTTPS_PROXY=""                                      # URL for HTTP(S) proxy (optional)
 LOG_LEVEL="info"                                    # Logging verbosity (optional)
-HTTPX_LOG_LEVEL="warning"                           # Log level of the httpx framework
+HTTPX_LOG_LEVEL="warning"                           # Log level of the httpx framework (optional)
 ```
 
 ## Templating
@@ -54,10 +54,10 @@ def new_work_item(work_item_adapter):
         work_item_adapter.area = "Path\\To\\My\\Custom\\Area"
         
 def map_analysis_to_work_item(analysis_adapter, work_item_adapter):
-    # Call this method if you want to re-render the ticket description
+    # Call this method if you want to re-render the ticket description from template
     work_item_adapter.render_description()
 
-# Remove mappers you dont need
+# Remove mappers you don't need
 # def map_work_item_to_analysis(work_item_adapter, analysis_adapter):
 #     pass
 ```
