@@ -25,4 +25,4 @@ def owasp_dt_client() -> AuthenticatedClient:
 
 @pytest.fixture
 def findings(owasp_dt_client: AuthenticatedClient) -> list[Finding]:
-    return owasp_dt_helper.load_and_filter_findings(owasp_dt_client)
+    return owasp_dt_helper.load_findings(owasp_dt_client)

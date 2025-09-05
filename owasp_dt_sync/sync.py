@@ -10,7 +10,6 @@ from owasp_dt.models import Finding, Analysis
 from tinystream import Stream
 
 from owasp_dt_sync import owasp_dt_helper, azure_helper, models, config, log, globals
-from owasp_dt_sync.models import WorkItemAdapter
 
 
 def handle_sync(args):
@@ -33,7 +32,7 @@ def handle_sync(args):
     azure_connection = azure_helper.create_connection_from_env()
     work_item_tracking_client = azure_connection.clients.get_work_item_tracking_client()
     owasp_dt_client = owasp_dt_helper.create_client_from_env()
-    findings = owasp_dt_helper.load_and_filter_findings(
+    findings = owasp_dt_helper.load_findings(
         client=owasp_dt_client,
         cvss2_min_score=args.cvss_min_score,
         cvss3_min_score=args.cvss_min_score,
@@ -41,11 +40,7 @@ def handle_sync(args):
         load_inactive=args.load_inactive,
     )
     for finding in Stream(findings).filter(globals.mapper.process_finding):
-        logger = log.get_logger(
-            project=f"{finding.component.project_name}:{finding.component.project_version if isinstance(finding.component.project_version, str) else None}",
-            component=f"{finding.component.name}:{finding.component.version}",
-            vulnerability=finding.vulnerability.vuln_id,
-        )
+        logger = models.create_finding_logger(finding)
         sync_finding(
             logger,
             owasp_dt_client,
@@ -54,7 +49,7 @@ def handle_sync(args):
             finding,
         )
 
-def find_newer(work_item_adapter: WorkItemAdapter, analysis: Analysis) -> tuple[WorkItemAdapter | Analysis, datetime]:
+def find_newer(work_item_adapter: models.WorkItemAdapter, analysis: Analysis) -> tuple[models.WorkItemAdapter | Analysis, datetime]:
     work_item_changed_data = work_item_adapter.changed_date
     comments = owasp_dt_helper.read_comments_desc(analysis).collect()
     if len(comments) > 0:
@@ -137,7 +132,7 @@ def create_new_work_item_adapter(
     azure_project: str,
     finding: Finding = None
 ):
-    work_item_adapter = WorkItemAdapter(WorkItem(), finding)
+    work_item_adapter = models.WorkItemAdapter(WorkItem(), finding)
     work_item_adapter.title = "New Finding"
     work_item_adapter.area = config.getenv("AZURE_WORK_ITEM_DEFAULT_AREA_PATH", "")
     globals.mapper.new_work_item(work_item_adapter)
@@ -153,7 +148,7 @@ def create_work_item(
     logger: log.Logger,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    work_item_adapter: WorkItemAdapter,
+    work_item_adapter: models.WorkItemAdapter,
     owasp_dt_client: AuthenticatedClient
 ):
     work_item: WorkItem = work_item_tracking_client.create_work_item(document=work_item_adapter.changes, project=azure_project, type=work_item_adapter.work_item_type)
@@ -172,7 +167,7 @@ def sync_items(
     owasp_dt_client: AuthenticatedClient,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    work_item_adapter: WorkItemAdapter,
+    work_item_adapter: models.WorkItemAdapter,
     analysis: Analysis,
 ):
     newer, reference_date = find_newer(work_item_adapter, analysis)
@@ -187,7 +182,7 @@ def sync_items(
             work_item_adapter=work_item_adapter,
             reference_date=reference_date,
         )
-    elif isinstance(newer, WorkItemAdapter):
+    elif isinstance(newer, models.WorkItemAdapter):
         sync_work_item_to_analysis(
             logger=logger,
             work_item_tracking_client=work_item_tracking_client,
@@ -203,7 +198,7 @@ def sync_work_item_to_analysis(
     logger: log.Logger,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    work_item_adapter: WorkItemAdapter,
+    work_item_adapter: models.WorkItemAdapter,
     owasp_dt_client: AuthenticatedClient,
     analysis_adapter: models.AnalysisAdapter,
     reference_date: datetime,
@@ -223,7 +218,7 @@ def sync_analysis_to_work_item(
     analysis_adapter: models.AnalysisAdapter,
     work_item_tracking_client: WorkItemTrackingClient,
     azure_project: str,
-    work_item_adapter: WorkItemAdapter,
+    work_item_adapter: models.WorkItemAdapter,
     reference_date: datetime,
 ):
     globals.mapper.map_analysis_to_work_item(analysis_adapter, work_item_adapter)

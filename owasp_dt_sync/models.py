@@ -23,6 +23,12 @@ class WorkItemField(StrEnum):
     def field_path(self):
         return f"/fields/{self.value}"
 
+def create_finding_logger(finding: Finding):
+    return log.get_logger(
+        project=f"{finding.component.project_name}:{finding.component.project_version if isinstance(finding.component.project_version, str) else None}",
+        component=f"{finding.component.name}:{finding.component.version}",
+        vulnerability=finding.vulnerability.vuln_id,
+    )
 
 class WorkItemAdapter:
     def __init__(self, work_item: WorkItem, finding: Finding = None):

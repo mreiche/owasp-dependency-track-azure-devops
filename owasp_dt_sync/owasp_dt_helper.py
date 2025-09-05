@@ -30,17 +30,17 @@ def create_client_from_env() -> AuthenticatedClient:
 
 def pretty_analysis_request(analysis_request: AnalysisRequest):
     req_dict = analysis_request.to_dict()
-    del req_dict["component"]
-    del req_dict["vulnerability"]
-    del req_dict["project"]
+    for key in ("component", "vulnerability", "project"):
+        del req_dict[key]
+
     return req_dict
 
-def load_and_filter_findings(
-        client: AuthenticatedClient,
-        cvss2_min_score: float = 0,
-        cvss3_min_score: float = 0,
-        load_suppressed: bool = False,
-        load_inactive: bool = False,
+def load_findings(
+    client: AuthenticatedClient,
+    cvss2_min_score: float = 0,
+    cvss3_min_score: float = 0,
+    load_suppressed: bool = False,
+    load_inactive: bool = False,
 ) -> list[Finding]:
     resp = get_all_findings_1.sync_detailed(
         client=client,
@@ -51,10 +51,6 @@ def load_and_filter_findings(
     )
     assert resp.status_code == 200
     return resp.parsed
-
-
-def finding2str(finding: Finding):
-    return f"{finding.component.project_name}:{finding.component.project_version};{finding.component.name}:{finding.component.version};{finding.vulnerability.vuln_id}"
 
 def finding_is_latest(finding: Finding):
     return finding.component.additional_properties["projectVersion"] == finding.component.additional_properties["latestVersion"]

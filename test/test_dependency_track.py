@@ -20,7 +20,6 @@ def test_add_findings_comment(owasp_dt_client: AuthenticatedClient, findings: li
     assert resp.status_code == 200
 
     analysis = resp.parsed
-    print(owasp_dt_helper.finding2str(finding))
     assert Stream(analysis.analysis_comments).filter(lambda comment: test_comment in comment.comment).next().present
 
 
