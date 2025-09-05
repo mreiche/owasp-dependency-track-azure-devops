@@ -1,5 +1,3 @@
-import os
-
 import jinja2
 
 __template_env: jinja2.Environment = None
@@ -19,7 +17,7 @@ def setup_jina_env():
         # template_env.filters['regex_replace'] = models.regex_replace
         # template_env.tests['is_not_defined'] = models.is_not_defined
         # template_env.tests['is_defined'] = models.is_defined
-        __template_env.globals["env"] = lambda name, default=None: os.getenv(name, default)
+        #__template_env.globals["env"] = lambda name, default=None: os.getenv(name, default)
     return __template_env
 
 def get_template():

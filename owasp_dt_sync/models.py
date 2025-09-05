@@ -1,8 +1,7 @@
-import importlib.util
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
-from pathlib import Path
 from typing import Callable
 
 from azure.devops.v7_0.core import JsonPatchOperation
@@ -12,12 +11,14 @@ from tinystream import Opt
 
 from owasp_dt_sync import jinja, log
 
+
 class WorkItemField(StrEnum):
     TITLE = "System.Title"
     DESCRIPTION = "System.Description"
     AREA = "System.AreaPath"
     STATE = "System.State"
     CHANGED_DATE = "System.ChangedDate"
+    REASON = "System.Reason"
 
     @property
     def field_path(self):
@@ -44,18 +45,31 @@ class WorkItemAdapter:
         if not self.__work_item.fields:
             self.__work_item.fields = {}
 
-        self.__work_item.fields[field.value] = value
-        self.__operations[field.field_path] = JsonPatchOperation(op="add", path=field.field_path, value=value)
+        self.set_field(field.value, value)
+
+    def __get_field_path(self, field: str):
+        return f"/fields/{field}"
+
+    def set_field(self, field_name:str, value: any):
+        self.__work_item.fields[field_name] = value
+        self.__operations[field_name] = JsonPatchOperation(op="add", path=self.__get_field_path(field_name), value=value)
+
+    def get_field(self, field_name: str) -> str|object:
+        return Opt(self.__work_item.fields).kmap(field_name).get("")
 
     @property
     def finding(self):
         return self.__finding
 
     @property
+    def owasp_dt_project_url(self):
+        return f"{os.getenv("OWASP_DTRACK_URL")}/projects/{self.finding.component.project}"
+
+    @property
     def work_item(self):
         return self.__work_item
 
-    def set_new_work_item(self, work_item: WorkItem):
+    def set_work_item(self, work_item: WorkItem):
         self.__work_item = work_item
         self.__operations.clear()
 
@@ -101,8 +115,7 @@ class WorkItemAdapter:
         else:
             return datetime.fromtimestamp(0, tz=timezone.utc)
 
-    @property
-    def changes(self):
+    def get_changes(self):
         return list(self.__operations.values())
 
     def render_description(self):
@@ -163,8 +176,7 @@ class AnalysisAdapter:
         self.__analysis.is_suppressed = value
         self.__analysis_request.is_suppressed = value
 
-    @property
-    def request(self):
+    def get_request(self):
         return self.__analysis_request
 
 
@@ -175,57 +187,3 @@ class MapperModule:
     map_work_item_to_analysis: Callable[[WorkItemAdapter, AnalysisAdapter], None]
     map_analysis_to_work_item: Callable[[AnalysisAdapter, WorkItemAdapter], None]
     function_names = ["process_finding", "new_work_item", "map_work_item_to_analysis", "map_analysis_to_work_item"]
-
-
-def load_custom_mapper_module(mapper_path: Path):
-    from owasp_dt_sync import globals
-
-    spec = importlib.util.spec_from_file_location(str(mapper_path), mapper_path)
-    modul = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(modul)
-
-    for function_name in MapperModule.function_names:
-        mapper_function = getattr(modul, function_name, None)
-        if mapper_function:
-            assert callable(mapper_function), f"Mapper function '{modul.__name__}:{function_name}' is not callable"
-            log.logger.info(f"Connect custom mapper function: '{mapper_path}:{function_name}'")
-            globals.mapper.__setattr__(function_name, mapper_function)
-
-def map_work_item_to_analysis(
-    work_item_adapter: WorkItemAdapter,
-    analysis_adapter: AnalysisAdapter
-):
-    analysis_adapter.suppressed = False
-
-    if work_item_adapter.state == "New":
-        analysis_adapter.state = "NOT_SET"
-    elif work_item_adapter.state in ["Closed", "Removed"]:
-        analysis_adapter.state = "RESOLVED"
-        analysis_adapter.suppressed = True
-    else:
-        analysis_adapter.state = "IN_TRIAGE"
-
-def map_analysis_to_work_item(
-    analysis_adapter: AnalysisAdapter,
-    work_item_adapter: WorkItemAdapter
-):
-    if analysis_adapter.state in [
-        "IN_TRIAGE",
-        "EXPLOITABLE",
-    ]:
-        work_item_adapter.state = "Active"
-    elif analysis_adapter.state in [
-        "RESOLVED",
-        "FALSE_POSITIVE",
-        "NOT_AFFECTED",
-    ]:
-        work_item_adapter.state = "Closed"
-    else:
-        work_item_adapter.state = "New"
-
-default_mapper = MapperModule(
-    process_finding=lambda x: True,
-    new_work_item=lambda x: None,
-    map_analysis_to_work_item=map_analysis_to_work_item,
-    map_work_item_to_analysis=map_work_item_to_analysis,
-)

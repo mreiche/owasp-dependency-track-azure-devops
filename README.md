@@ -54,7 +54,7 @@ def new_work_item(work_item_adapter):
         work_item_adapter.area = "Path\\To\\My\\Custom\\Area"
         
 def map_analysis_to_work_item(analysis_adapter, work_item_adapter):
-    # Call this method if you want to re-render the ticket description
+    # Call this method if you want to re-render the ticket description from template
     work_item_adapter.render_description()
 
 # Remove mappers you don't need
