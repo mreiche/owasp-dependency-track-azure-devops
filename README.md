@@ -96,3 +96,10 @@ podman|docker \
  ...
  ghcr.io/mreiche/owasp-dependency-azure-devops:latest --mapper "$(pwd)/path/to/your/mapper.py"
 ```
+
+## More OWASP Dependency Track utils
+
+This library is part of a wider OWASP Dependency Track tool chain:
+- OWASP Dependency Track Python API client: https://github.com/mreiche/owasp-dependency-track-python-client
+- OWASP Dependency Track CLI: https://github.com/mreiche/owasp-dependency-track-cli
+- OWASP Dependency Track Azure DevOps Sync: https://github.com/mreiche/owasp-dependency-track-azure-devops
