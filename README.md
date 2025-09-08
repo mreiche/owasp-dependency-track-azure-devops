@@ -1,4 +1,4 @@
-[![PyPI version](https://badge.fury.io/py/owasp-dependency-azure-devops.svg)](https://badge.fury.io/py/owasp-dependency-azure-devops)
+[![PyPI version](https://badge.fury.io/py/owasp-dependency-track-azure-devops.svg)](https://badge.fury.io/py/owasp-dependency-track-azure-devops)
 
 # OWASP Dependency Track / Azure DevOps Sync
 
