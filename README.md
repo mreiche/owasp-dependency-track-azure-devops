@@ -28,7 +28,7 @@ podman|docker \
  -eOWASP_DTRACK_URL="http://192.168.1.100:8081" \
  -eOWASP_DTRACK_VERIFY_SSL="false" \
  -eOWASP_DTRACK_API_KEY="xyz" \
- ghcr.io/mreiche/owasp-dependency-azure-devops:latest --apply
+ ghcr.io/mreiche/owasp-dependency-track-azure-devops:latest --apply
 ```
 
 ## Environment variables
@@ -94,7 +94,7 @@ In Container runtime, keep in mind that you have to mount the mapper location as
 podman|docker \
  run --rm -v"$(pwd):$(pwd)"
  ...
- ghcr.io/mreiche/owasp-dependency-azure-devops:latest --mapper "$(pwd)/path/to/your/mapper.py"
+ ghcr.io/mreiche/owasp-dependency-track-azure-devops:latest --mapper "$(pwd)/path/to/your/mapper.py"
 ```
 
 ## More OWASP Dependency Track utils
