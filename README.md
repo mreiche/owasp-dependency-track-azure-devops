@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/owasp-dependency-azure-devops.svg)](https://badge.fury.io/py/owasp-dependency-azure-devops)
+
 # OWASP Dependency Track / Azure DevOps Sync
 
 Synchronizes OWASP Dependency Track *Findings* with Azure DevOps *WorkItems*.
@@ -14,9 +16,24 @@ Use the following flag to perform these changes:
 owasp-dtrack-azure-devops --apply
 ```
 
+As Container runtime:
+
+```shell
+podman|docker \
+ run --rm \
+ -eAZURE_ORG_URL="https://dev.azure.com/organisation" \
+ -eAZURE_PROJECT="my-project" \
+ -eAZURE_API_KEY="abc" \
+ -eAZURE_WORK_ITEM_DEFAULT_AREA_PATH="My\Path" \
+ -eOWASP_DTRACK_URL="http://192.168.1.100:8081" \
+ -eOWASP_DTRACK_VERIFY_SSL="false" \
+ -eOWASP_DTRACK_API_KEY="xyz" \
+ ghcr.io/mreiche/owasp-dependency-azure-devops:latest --apply
+```
+
 ## Environment variables
 
-You can also pass these variables in a file using the `--env` parameter.
+These environment variables are available for configuration:
 
 ```shell
 AZURE_ORG_URL="https://dev.azure.com/organisation"  # Azure organisation URL
@@ -30,6 +47,12 @@ HTTPS_PROXY=""                                      # URL for HTTP(S) proxy (opt
 LOG_LEVEL="info"                                    # Logging verbosity (optional)
 HTTPX_LOG_LEVEL="warning"                           # Log level of the httpx framework (optional)
 ```
+
+You can also pass these variables from a file:
+```shell
+owasp-dtrack-azure-devops --env path/to/your/file.env
+```
+
 
 ## Templating
 
@@ -64,4 +87,12 @@ def map_analysis_to_work_item(analysis_adapter, work_item_adapter):
 and pass this mapper using:
 ```shell
 owasp-dtrack-azure-devops --mapper path/to/your/mapper.py
+```
+
+In Container runtime, keep in mind that you have to mount the mapper location as volume first.
+```shell
+podman|docker \
+ run --rm -v"$(pwd):$(pwd)"
+ ...
+ ghcr.io/mreiche/owasp-dependency-azure-devops:latest --mapper "$(pwd)/path/to/your/mapper.py"
 ```
