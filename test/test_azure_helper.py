@@ -1,7 +1,11 @@
+import pandas as pd
+from azure.devops.released.pipelines import PipelinesClient, Pipeline
 from azure.devops.released.work_item_tracking import WorkItemTrackingClient
 from azure.devops.v7_0.work_item_tracking import JsonPatchOperation
+from azure.devops.v7_1.pipelines import Run
 from azure.devops.v7_1.work_item_tracking import WorkItem
 from is_empty import empty
+from datetime import datetime, timedelta
 
 from owasp_dt_sync import azure_helper, config
 
@@ -37,3 +41,52 @@ def test_create_and_destroy_work_item(
 
     work_item_tracking_client.delete_work_item(id=work_item.id, project=azure_project)
     #work_item_tracking_client.destroy_work_item(id=work_item.id, project=azure_project)  # does not work
+
+def test_get_pipeline_runtimes(azure_connection, azure_project: str):
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+    pipelines_client: PipelinesClient = azure_connection.clients.get_pipelines_client()
+    pipelines: list[Pipeline] = pipelines_client.list_pipelines(project=azure_project)
+
+    data: list[dict] = []
+
+    for pipeline in pipelines:
+        pipeline_runs: list[Run] = pipelines_client.list_runs(project=azure_project, pipeline_id=pipeline.id)
+        for pipeline_run in pipeline_runs:
+            if isinstance(pipeline_run.created_date, datetime) and isinstance(pipeline_run.finished_date, datetime):
+                duration = pipeline_run.finished_date - pipeline_run.created_date
+
+                if duration > timedelta(hours=1):
+                    continue
+
+                data.append({
+                    "name": pipeline.name,
+                    "duration": duration
+                })
+
+    df = pd.DataFrame(data)
+    #df.plot()
+    #df["duration"] = pd.to_timedelta(df["duration"], unit="m")
+    medians = (df
+               .groupby("name")["duration"]
+               .median()
+               .sort_values(ascending=False)
+               .head(50)
+               )
+
+    medians_minutes = medians.dt.total_seconds() / 60
+    medians_minutes.plot(kind="bar", figsize=(12,6))
+
+    plt.ylabel("min")
+    plt.title("Pipeline runtime medians")
+    plt.tight_layout()
+    plt.show()
+
+    totals = df.groupby("name")["duration"].sum().sort_values(ascending=False).head(50)
+    totals = totals.dt.total_seconds() / 60
+    totals.plot(kind="bar", figsize=(12,6))
+    plt.ylabel("min")
+    plt.title("Total pipeline runtime")
+    plt.tight_layout()
+    plt.show()
