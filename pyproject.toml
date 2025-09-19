@@ -21,8 +21,10 @@ dependencies = [
 owasp-dtrack-azure-devops = "owasp_dt_sync.cli:main"
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7",
+build = [
     "build",
     "twine"
+]
+test = [
+    "pytest>=7",
 ]
