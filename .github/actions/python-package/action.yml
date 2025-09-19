@@ -28,8 +28,10 @@ runs:
       shell: bash
 
     - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
       if: startsWith(github.ref, 'refs/tags/')
-      with:
-        user: __token__
-        password: ${{ inputs.pypiApiToken }}
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ inputs.pypiApiToken }}
+      run: |
+        twine upload dist/*
+      shell: bash
