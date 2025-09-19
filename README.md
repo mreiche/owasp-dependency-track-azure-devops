@@ -4,6 +4,12 @@
 
 Synchronizes OWASP Dependency Track *Findings* with Azure DevOps *WorkItems*.
 
+## Installation
+
+```shell
+pip install owasp-dependency-track-azure-devops
+```
+
 ## Usage
 
 The following command will log possible change operations, when the [environment variables](#environment-variables) are configured:
