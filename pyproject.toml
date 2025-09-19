@@ -21,7 +21,8 @@ dependencies = [
 owasp-dtrack-azure-devops = "owasp_dt_sync.cli:main"
 
 [tool.setuptools_scm]
-version_scheme = "release-branch-semver"
+version_scheme = "post-release"
+local_scheme = "no-local-version"
 
 [project.optional-dependencies]
 build = [
