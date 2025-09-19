@@ -5,6 +5,7 @@ from owasp_dt_sync.sync import handle_sync
 
 def create_parser():
     parser = argparse.ArgumentParser(
+        prog="owasp-dtrack-azure-devops",
         description="OWASP Dependency Track Azure DevOps Sync",
         exit_on_error=False
     )

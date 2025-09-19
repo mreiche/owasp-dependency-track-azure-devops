@@ -1,6 +1,0 @@
-owasp-dependency-track-client==4.13.6
-is_empty==1.0.1
-tinystream==0.1.18
-dotenv== 0.9.9
-jinja2==3.1.6
-azure-devops==7.1.0b4
