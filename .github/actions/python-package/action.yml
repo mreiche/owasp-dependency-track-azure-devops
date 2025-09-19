@@ -4,17 +4,13 @@ inputs:
   pypiApiToken:
     required: true
     description: API token for publish pypi package
+  version:
+    required: true
+    description: Package version
 
 runs:
   using: 'composite'
   steps:
-    - name: Extract version from tag
-      id: version
-      run: |
-        TAG=${GITHUB_REF##*/}
-        echo "PACKAGE_VERSION=${TAG#v}" >> $GITHUB_ENV
-      shell: bash
-
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -24,10 +20,11 @@ runs:
 
     - name: Build the package
       run: |
+        echo "Build package with detected version: ${PACKAGE_VERSION}"
         pip install -e .[build]
         python -m build
       env:
-        PACKAGE_VERSION: ${{ env.PACKAGE_VERSION }}
+        PACKAGE_VERSION: ${{ inputs.version }}
       shell: bash
 
     - name: Publish to PyPI

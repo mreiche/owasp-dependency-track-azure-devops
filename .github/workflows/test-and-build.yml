@@ -42,3 +42,4 @@ jobs:
       - uses: ./.github/actions/python-package
         with:
           pypiApiToken: none
+          version: 9.9.9

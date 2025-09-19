@@ -27,6 +27,14 @@ jobs:
           user: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF##*/}
+          echo "PACKAGE_VERSION=${TAG#v}" >> $GITHUB_ENV
+        shell: bash
+
       - uses: ./.github/actions/python-package
         with:
           pypiApiToken: ${{ secrets.PYPI_API_TOKEN }}
+          version: ${{ env.PACKAGE_VERSION }}
