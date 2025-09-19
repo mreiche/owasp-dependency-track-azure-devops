@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=65", "setuptools-scm"]
+requires = ["setuptools>=65"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -22,9 +22,9 @@ owasp-dtrack-azure-devops = "owasp_dt_sync.cli:main"
 
 [project.optional-dependencies]
 build = [
-    "build",
-    "twine"
+    "build"
 ]
+
 test = [
     "pytest>=7",
 ]
