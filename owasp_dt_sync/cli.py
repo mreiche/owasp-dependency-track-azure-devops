@@ -12,3 +12,6 @@ def main():
     except Exception as e:
         logger.exception(e)
         exit(1)
+
+if __name__ == "__main__":  # pragma: no cover
+    main()  # pragma: no cover
