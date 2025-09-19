@@ -39,3 +39,6 @@ jobs:
         with:
           user: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/python-package
+        with:
+          pypiApiToken: none
